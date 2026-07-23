@@ -71,6 +71,33 @@ _ARBEITNOW_PAGE_1 = {
 }
 _ARBEITNOW_EMPTY_PAGE = {"data": []}
 
+_REMOTEOK_PAYLOAD = [
+    {"legal": "By using this API you agree to remoteok.com/legal",
+     "https://remoteok.com/legal": "description"},
+    {
+        "id": "999888",
+        "position": "Fullstack Engineer (Ruby/React)",
+        "company": "RemoteCo",
+        "tags": ["fullstack", "ruby", "react"],
+        "description": "<p>Build <b>fullstack</b> features.</p>",
+        "location": "Worldwide",
+        "salary_min": 70000,
+        "salary_max": 100000,
+        "url": "https://remoteok.com/remote-jobs/999888-fullstack-engineer-remoteco",
+        "date": "2026-07-18T00:00:00+00:00",
+    },
+    {
+        "id": "999777",
+        "position": "DevOps Engineer",
+        "company": "OpsCo",
+        "tags": ["devops", "aws"],
+        "description": "<p>Ops only.</p>",
+        "location": "Worldwide",
+        "url": "https://remoteok.com/remote-jobs/999777",
+        "date": "2026-07-17T00:00:00+00:00",
+    },
+]
+
 
 class _FakeResp:
     def __init__(self, payload):
@@ -84,7 +111,7 @@ class _FakeResp:
 
 
 def _install_fake_get(monkeypatch_state):
-    def fake_get(url, params=None, timeout=None):
+    def fake_get(url, params=None, timeout=None, headers=None):
         if "remotive" in url:
             return _FakeResp(_REMOTIVE_PAYLOAD)
         if "arbeitnow" in url:
@@ -92,6 +119,8 @@ def _install_fake_get(monkeypatch_state):
             if monkeypatch_state["n"] == 1:
                 return _FakeResp(_ARBEITNOW_PAGE_1)
             return _FakeResp(_ARBEITNOW_EMPTY_PAGE)
+        if "remoteok" in url:
+            return _FakeResp(_REMOTEOK_PAYLOAD)
         raise AssertionError(f"unexpected url {url}")
 
     es.requests.get = fake_get
@@ -132,6 +161,17 @@ def test_fetch_arbeitnow_filters_remote_and_fullstack():
     assert job["location"] == "Remoto (Berlin, Germany)"
 
 
+def test_fetch_remoteok_skips_legal_notice_and_filters_fullstack():
+    _install_fake_get({"n": 0})
+    jobs = es.fetch_remoteok()
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job["id"] == "remoteok-999888"
+    assert job["title"] == "Fullstack Engineer (Ruby/React)"
+    assert job["company"] == "RemoteCo"
+    assert "<" not in job["description"]
+
+
 def test_fetch_remotive_disabled_returns_empty(monkeypatch=None):
     import config
     original = config.ENABLE_REMOTIVE
@@ -143,12 +183,24 @@ def test_fetch_remotive_disabled_returns_empty(monkeypatch=None):
 
 
 def test_fetch_handles_network_error_gracefully():
-    def broken_get(url, params=None, timeout=None):
+    def broken_get(url, params=None, timeout=None, headers=None):
         raise es.requests.exceptions.ConnectionError("no network")
 
     es.requests.get = broken_get
     assert es.fetch_remotive() == []
     assert es.fetch_arbeitnow(max_pages=2) == []
+    assert es.fetch_remoteok() == []
+
+
+def test_fetch_all_extra_sources_combines_all_three():
+    _install_fake_get({"n": 0})
+    jobs = es.fetch_all_extra_sources()
+    ids = {j["id"] for j in jobs}
+    assert ids == {
+        "remotive-111",
+        "arbeitnow-fullstack-dev-berlin-99",
+        "remoteok-999888",
+    }
 
 
 def _run():

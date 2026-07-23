@@ -131,23 +131,37 @@ last 1-2 entries before starting work, to know what's already done.
 - [ ] Simple CLI review step: before spending DeepSeek API calls on every job
       found, let the user look at `jobs_found.csv` and pick which ones to tailor
       (`--only-ids 1,2,3` or an interactive picker).
-- [x] More search sources: added Remotive and Arbeitnow (`extra_sources.py`)
-      — both public JSON APIs, no login, no API key. Both are remote-only by
-      nature, which pairs naturally with the location filter. No reliable
-      Portuguese keyword search on either, so both are filtered by a
-      "fullstack" relevance regex on title/tags instead of the literal
-      keyword string. Toggle individually via `ENABLE_REMOTIVE`/
-      `ENABLE_ARBEITNOW` in `.env`. Parsing logic verified offline against
-      fixtures matching each API's documented schema (sandbox network
-      egress blocks remotive.com/arbeitnow.com directly, same as it does
-      Adzuna/DeepSeek — live verification is on the user, locally).
+- [x] More search sources: added Remotive, Arbeitnow, and RemoteOK
+      (`extra_sources.py`) — all public JSON APIs, no login, no API key. All
+      three are remote-only by nature, which pairs naturally with the
+      location filter. No reliable Portuguese keyword search on any of them,
+      so all three are filtered by a "fullstack" relevance regex on
+      title/tags instead of the literal keyword string. Toggle individually
+      via `ENABLE_REMOTIVE`/`ENABLE_ARBEITNOW`/`ENABLE_REMOTEOK` in `.env`.
+      Parsing logic verified offline against fixtures matching each API's
+      documented schema (sandbox network egress blocks remotive.com/
+      arbeitnow.com/remoteok.com directly, same as it does Adzuna/DeepSeek —
+      live verification is on the user, locally; RemoteOK in particular has
+      not been hit with a real request at all in this project yet).
       Gupy/Vagas.com/InfoJobs/Catho were explicitly evaluated with the user
       on 2026-07-22 and declined for now (no public no-login API; scraping
       public pages carries ToS risk) — see PROGRESS_LOG.md. LinkedIn/login
       automation remains out of scope per the project's own hard constraint.
+- [x] Adzuna location-scoped reinforcement pass: `search_jobs.py` now also
+      queries Adzuna with `where=HOME_CITY` (2 pages) in addition to the
+      broad keyword search, to surface local Florianópolis listings that the
+      relevance-ranked broad search might not show within `max_pages`.
+- [x] Broadened default `SEARCH_KEYWORDS` from "desenvolvedor fullstack
+      junior" to "desenvolvedor fullstack" — the literal word "junior" in
+      Adzuna's free-text search was excluding postings titled just "Pleno"
+      that `filters.is_too_senior` would have kept anyway. Level filtering is
+      now entirely the filter's job, not the search string's.
 - [~] Unit tests (`pytest`) for pure functions: started in `test_filters.py`
       (`slugify`, `is_too_senior`, `filter_out_senior`, `is_local_or_remote`,
-      `filter_out_non_local`). Still missing: CSV parsing, prompt building.
+      `filter_out_non_local`) and `test_extra_sources.py` (fixture-based
+      tests for Remotive/Arbeitnow/RemoteOK parsing). Still missing: CSV
+      parsing, prompt building, Adzuna `_adzuna_job_to_dict`/reinforcement
+      pass (needs a live-network-shaped mock, not done yet).
 
 ### P2 — nice to have
 - [ ] Lightweight status tracker on top of `applications/index.csv` (statuses:

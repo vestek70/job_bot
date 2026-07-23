@@ -141,10 +141,66 @@ def fetch_arbeitnow(max_pages: int = None) -> list:
     return jobs
 
 
+def fetch_remoteok() -> list:
+    """Vagas remotas do RemoteOK, filtradas por relevância fullstack. Não
+    precisa de chave de API, mas o RemoteOK bloqueia User-Agent genérico de
+    biblioteca HTTP (retorna 403) — por isso enviamos um User-Agent explícito.
+
+    Aviso: formato baseado na API pública documentada do RemoteOK, não
+    verificado com uma chamada de rede real nesta sessão (rede bloqueada na
+    sandbox de desenvolvimento — mesma limitação de Remotive/Arbeitnow). Se
+    o parsing não achar nenhuma vaga na primeira execução real e não houver
+    AVISO de erro no stderr, o formato pode ter mudado — conferir
+    https://remoteok.com/api."""
+    if not config.ENABLE_REMOTEOK:
+        return []
+    try:
+        resp = requests.get(
+            "https://remoteok.com/api",
+            headers={
+                "User-Agent": "job-bot/1.0 (uso pessoal, busca de vagas fullstack)"
+            },
+            timeout=config.HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.exceptions.RequestException, ValueError) as e:
+        print(f"AVISO: RemoteOK indisponível ({e}), pulando esta fonte.",
+              file=sys.stderr)
+        return []
+
+    jobs = []
+    for job in data:
+        # O primeiro item do array costuma ser um aviso legal, não uma vaga —
+        # pula qualquer item sem os campos mínimos de uma vaga real.
+        if not isinstance(job, dict) or not job.get("id") or not job.get("position"):
+            continue
+        title = (job.get("position") or "").strip()
+        tags = job.get("tags") or []
+        if not _is_fullstack_relevant(title, tags):
+            continue
+        location = job.get("location") or "não especificado"
+        jobs.append(
+            {
+                "id": f"remoteok-{job.get('id')}",
+                "title": title,
+                "company": job.get("company", ""),
+                "location": f"Remoto ({location})",
+                "salary_min": job.get("salary_min", ""),
+                "salary_max": job.get("salary_max", ""),
+                "description": _strip_html(job.get("description", "")),
+                "redirect_url": job.get("url") or job.get("apply_url", ""),
+                "created": job.get("date", ""),
+            }
+        )
+    return jobs
+
+
 def fetch_all_extra_sources() -> list:
     """Agrega todas as fontes extras habilitadas (além da Adzuna). Nunca
     lança exceção — cada fonte trata seus próprios erros e retorna []."""
     jobs = []
     jobs.extend(fetch_remotive())
     jobs.extend(fetch_arbeitnow())
+    jobs.extend(fetch_remoteok())
     return jobs

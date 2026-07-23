@@ -37,9 +37,14 @@ GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
 
 # --- Busca ---
 COUNTRY = "br"
+# "junior" foi removido da palavra-chave padrão: a busca de texto livre da
+# Adzuna ("what") tratava "junior" como termo obrigatório, excluindo vagas
+# tituladas só "Pleno" que o filtro de senioridade (filters.py) aceitaria de
+# qualquer forma. A palavra-chave só precisa achar candidatas relevantes; o
+# nível é responsabilidade do filtro, não do texto de busca.
 SEARCH_KEYWORDS = os.environ.get(
     "SEARCH_KEYWORDS",
-    "desenvolvedor fullstack junior",
+    "desenvolvedor fullstack",
 )
 CATEGORY = "it-jobs"
 RESULTS_PER_PAGE = 20
@@ -60,6 +65,7 @@ FILTER_LOCATION = os.environ.get("FILTER_LOCATION", "1") not in ("0", "false", "
 # individualmente se ficarem instáveis ou indesejadas.
 ENABLE_REMOTIVE = os.environ.get("ENABLE_REMOTIVE", "1") not in ("0", "false", "")
 ENABLE_ARBEITNOW = os.environ.get("ENABLE_ARBEITNOW", "1") not in ("0", "false", "")
+ENABLE_REMOTEOK = os.environ.get("ENABLE_REMOTEOK", "1") not in ("0", "false", "")
 
 # --- Rede / retries (tratamento de erros de API) ---
 HTTP_TIMEOUT = 30          # segundos por requisição

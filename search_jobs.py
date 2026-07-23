@@ -7,8 +7,12 @@ Requer variáveis de ambiente:
 
 Cadastro gratuito: https://developer.adzuna.com/signup
 
+Além da busca ampla por palavra-chave, faz uma segunda passada reforçada com
+`where=HOME_CITY` (config.py) para não perder vagas locais que a busca ampla
+ordenaria mais abaixo.
+
 Uso:
-  python search_jobs.py "desenvolvedor fullstack junior"
+  python search_jobs.py "desenvolvedor fullstack"
   python search_jobs.py "desenvolvedor fullstack" --include-senior
 """
 import argparse
@@ -81,7 +85,7 @@ def _get_with_retries(url: str, params: dict) -> dict:
     )
 
 
-def fetch_page(page: int, keywords: str) -> dict:
+def fetch_page(page: int, keywords: str, where: str = None) -> dict:
     url = f"https://api.adzuna.com/v1/api/jobs/{config.COUNTRY}/search/{page}"
     params = {
         "app_id": config.ADZUNA_APP_ID,
@@ -91,7 +95,23 @@ def fetch_page(page: int, keywords: str) -> dict:
         "category": config.CATEGORY,
         "content-type": "application/json",
     }
+    if where:
+        params["where"] = where
     return _get_with_retries(url, params)
+
+
+def _adzuna_job_to_dict(job: dict) -> dict:
+    return {
+        "id": job.get("id"),
+        "title": (job.get("title") or "").strip(),
+        "company": (job.get("company") or {}).get("display_name", ""),
+        "location": (job.get("location") or {}).get("display_name", ""),
+        "salary_min": job.get("salary_min", ""),
+        "salary_max": job.get("salary_max", ""),
+        "description": (job.get("description") or "").strip(),
+        "redirect_url": job.get("redirect_url", ""),
+        "created": job.get("created", ""),
+    }
 
 
 def search_jobs(keywords: str = None, max_pages: int = None,
@@ -125,19 +145,7 @@ def search_jobs(keywords: str = None, max_pages: int = None,
                 if job_id in seen_ids:
                     continue
                 seen_ids.add(job_id)
-                all_jobs.append(
-                    {
-                        "id": job_id,
-                        "title": (job.get("title") or "").strip(),
-                        "company": (job.get("company") or {}).get("display_name", ""),
-                        "location": (job.get("location") or {}).get("display_name", ""),
-                        "salary_min": job.get("salary_min", ""),
-                        "salary_max": job.get("salary_max", ""),
-                        "description": (job.get("description") or "").strip(),
-                        "redirect_url": job.get("redirect_url", ""),
-                        "created": job.get("created", ""),
-                    }
-                )
+                all_jobs.append(_adzuna_job_to_dict(job))
             time.sleep(1)  # não sobrecarregar a API
     except AdzunaError as e:
         # Se já pegamos algo, seguimos com o que temos; senão, encerra com a mensagem.
@@ -148,10 +156,37 @@ def search_jobs(keywords: str = None, max_pages: int = None,
             print(f"ERRO: {e}", file=sys.stderr)
             sys.exit(1)
 
+    # Segunda passada na Adzuna, com "where" (busca reforçada local): a busca
+    # ampla acima ordena por relevância de texto, então uma vaga real em
+    # HOME_CITY pode não aparecer nas primeiras `max_pages` mesmo existindo.
+    # Não fatal se falhar — já temos a busca ampla.
+    try:
+        local_pages = min(max_pages, 2)
+        local_added = 0
+        for page in range(1, local_pages + 1):
+            data = fetch_page(page, keywords, where=config.HOME_CITY)
+            results = data.get("results", [])
+            if not results:
+                break
+            for job in results:
+                job_id = job.get("id")
+                if job_id in seen_ids:
+                    continue
+                seen_ids.add(job_id)
+                all_jobs.append(_adzuna_job_to_dict(job))
+                local_added += 1
+            time.sleep(1)
+        if local_added:
+            print(f"+ {local_added} vaga(s) via busca local reforçada em "
+                  f"{config.HOME_CITY}.")
+    except AdzunaError as e:
+        print(f"AVISO: busca local reforçada em {config.HOME_CITY} falhou "
+              f"({e}), seguindo sem ela.", file=sys.stderr)
+
     extra_jobs = fetch_all_extra_sources()
     if extra_jobs:
-        print(f"+ {len(extra_jobs)} vaga(s) de fontes extras (Remotive/Arbeitnow, "
-              f"só remotas).")
+        print(f"+ {len(extra_jobs)} vaga(s) de fontes extras (Remotive/Arbeitnow/"
+              f"RemoteOK, só remotas).")
     for job in extra_jobs:
         if job.get("id") in seen_ids:
             continue
