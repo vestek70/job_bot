@@ -85,19 +85,57 @@ def _get_with_retries(url: str, params: dict) -> dict:
     )
 
 
-def fetch_page(page: int, keywords: str, where: str = None) -> dict:
+def fetch_page(page: int, keywords: str = None, where: str = None,
+               what_or: str = None) -> dict:
     url = f"https://api.adzuna.com/v1/api/jobs/{config.COUNTRY}/search/{page}"
     params = {
         "app_id": config.ADZUNA_APP_ID,
         "app_key": config.ADZUNA_APP_KEY,
         "results_per_page": config.RESULTS_PER_PAGE,
-        "what": keywords,
         "category": config.CATEGORY,
         "content-type": "application/json",
     }
+    if keywords:
+        params["what"] = keywords
+    if what_or:
+        # OR lógico entre os termos — pega muito mais que uma única palavra.
+        params["what_or"] = what_or
     if where:
         params["where"] = where
     return _get_with_retries(url, params)
+
+
+def _collect_adzuna_pass(all_jobs: list, seen_ids: set, max_pages: int,
+                         label: str, *, keywords: str = None,
+                         where: str = None, what_or: str = None) -> int:
+    """Roda uma passada paginada na Adzuna, acrescenta vagas novas (dedup por
+    id) a `all_jobs` e retorna quantas foram adicionadas. Best-effort: erros
+    da Adzuna nesta passada não são fatais se já houver algo — só avisa.
+    A primeira passada (label='busca principal') é a única que pode encerrar
+    o programa se falhar sem nada coletado."""
+    added = 0
+    try:
+        for page in range(1, max_pages + 1):
+            data = fetch_page(page, keywords=keywords, where=where, what_or=what_or)
+            results = data.get("results", [])
+            if not results:
+                break
+            for job in results:
+                job_id = job.get("id")
+                if job_id in seen_ids:
+                    continue
+                seen_ids.add(job_id)
+                all_jobs.append(_adzuna_job_to_dict(job))
+                added += 1
+            time.sleep(1)  # não sobrecarregar a API
+    except AdzunaError as e:
+        if all_jobs:
+            print(f"AVISO: passada '{label}' falhou ({e}). Continuando com "
+                  f"{len(all_jobs)} vaga(s) já obtida(s).", file=sys.stderr)
+        else:
+            print(f"ERRO: {e}", file=sys.stderr)
+            sys.exit(1)
+    return added
 
 
 def _adzuna_job_to_dict(job: dict) -> dict:
@@ -134,59 +172,34 @@ def search_jobs(keywords: str = None, max_pages: int = None,
     all_jobs = []
     seen_ids = set()
 
-    try:
-        for page in range(1, max_pages + 1):
-            data = fetch_page(page, keywords)
-            results = data.get("results", [])
-            if not results:
-                break
-            for job in results:
-                job_id = job.get("id")
-                if job_id in seen_ids:
-                    continue
-                seen_ids.add(job_id)
-                all_jobs.append(_adzuna_job_to_dict(job))
-            time.sleep(1)  # não sobrecarregar a API
-    except AdzunaError as e:
-        # Se já pegamos algo, seguimos com o que temos; senão, encerra com a mensagem.
-        if all_jobs:
-            print(f"AVISO: {e} Continuando com {len(all_jobs)} vaga(s) já obtida(s).",
-                  file=sys.stderr)
-        else:
-            print(f"ERRO: {e}", file=sys.stderr)
-            sys.exit(1)
+    # Passada 1 — busca principal pela palavra-chave do usuário (pode encerrar
+    # o programa se falhar sem nada coletado).
+    _collect_adzuna_pass(all_jobs, seen_ids, max_pages, "busca principal",
+                         keywords=keywords)
 
-    # Segunda passada na Adzuna, com "where" (busca reforçada local): a busca
-    # ampla acima ordena por relevância de texto, então uma vaga real em
-    # HOME_CITY pode não aparecer nas primeiras `max_pages` mesmo existindo.
-    # Não fatal se falhar — já temos a busca ampla.
-    try:
-        local_pages = min(max_pages, 2)
-        local_added = 0
-        for page in range(1, local_pages + 1):
-            data = fetch_page(page, keywords, where=config.HOME_CITY)
-            results = data.get("results", [])
-            if not results:
-                break
-            for job in results:
-                job_id = job.get("id")
-                if job_id in seen_ids:
-                    continue
-                seen_ids.add(job_id)
-                all_jobs.append(_adzuna_job_to_dict(job))
-                local_added += 1
-            time.sleep(1)
-        if local_added:
-            print(f"+ {local_added} vaga(s) via busca local reforçada em "
-                  f"{config.HOME_CITY}.")
-    except AdzunaError as e:
-        print(f"AVISO: busca local reforçada em {config.HOME_CITY} falhou "
-              f"({e}), seguindo sem ela.", file=sys.stderr)
+    # Passada 2 — busca ampla "what_or" (OR de muitos termos de dev): pega
+    # vagas de backend/frontend/react/python/etc. que a palavra-chave única
+    # não pegaria. É o que mais aumenta o volume dentro do Brasil.
+    if config.ADZUNA_BROAD_OR:
+        broad = _collect_adzuna_pass(all_jobs, seen_ids, max_pages, "busca ampla",
+                                     what_or=config.ADZUNA_BROAD_OR)
+        if broad:
+            print(f"+ {broad} vaga(s) via busca ampla (backend/frontend/react/etc.).")
+
+    # Passada 3 — reforço local em HOME_CITY (a busca ampla ordena por
+    # relevância de texto; uma vaga real na cidade pode não aparecer nas
+    # primeiras páginas mesmo existindo).
+    local = _collect_adzuna_pass(all_jobs, seen_ids, min(max_pages, 2),
+                                 f"busca local {config.HOME_CITY}",
+                                 what_or=config.ADZUNA_BROAD_OR,
+                                 where=config.HOME_CITY)
+    if local:
+        print(f"+ {local} vaga(s) via busca local reforçada em {config.HOME_CITY}.")
 
     extra_jobs = fetch_all_extra_sources()
     if extra_jobs:
         print(f"+ {len(extra_jobs)} vaga(s) de fontes extras (Remotive/Arbeitnow/"
-              f"RemoteOK, só remotas).")
+              f"RemoteOK/Jobicy/The Muse).")
     for job in extra_jobs:
         if job.get("id") in seen_ids:
             continue

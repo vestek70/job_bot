@@ -61,11 +61,39 @@ HOME_CITY = os.environ.get("HOME_CITY", "Florianópolis")
 FILTER_LOCATION = os.environ.get("FILTER_LOCATION", "1") not in ("0", "false", "")
 
 # --- Fontes extras de vagas (além da Adzuna) — ver extra_sources.py ---
-# Ambas são APIs públicas, sem login, sem chave necessária. Desligáveis
+# Todas são APIs públicas, sem login, sem chave necessária. Desligáveis
 # individualmente se ficarem instáveis ou indesejadas.
 ENABLE_REMOTIVE = os.environ.get("ENABLE_REMOTIVE", "1") not in ("0", "false", "")
 ENABLE_ARBEITNOW = os.environ.get("ENABLE_ARBEITNOW", "1") not in ("0", "false", "")
 ENABLE_REMOTEOK = os.environ.get("ENABLE_REMOTEOK", "1") not in ("0", "false", "")
+ENABLE_JOBICY = os.environ.get("ENABLE_JOBICY", "1") not in ("0", "false", "")
+ENABLE_THEMUSE = os.environ.get("ENABLE_THEMUSE", "1") not in ("0", "false", "")
+
+# Relevância: as fontes remotas (Remotive/Arbeitnow/RemoteOK/Jobicy) não têm
+# busca por palavra-chave confiável, então filtramos as vagas por relevância
+# no título/tags. Antes era só "fullstack" — restritivo demais para quem também
+# se candidata a backend/frontend/react/python/web dev. Lista ampla (regex,
+# sem acento, minúsculas) — casa qualquer um dos termos.
+# Sobrescrever via env RELEVANCE_KEYWORDS="a,b,c" se quiser afinar.
+_DEFAULT_RELEVANCE = (
+    r"full[\s-]?stack,back[\s-]?end,front[\s-]?end,react,vue,angular,node,"
+    r"typescript,javascript,python,django,flask,php,laravel,ruby,rails,"
+    r"\.net,desenvolvedor,programador,software engineer,software developer,"
+    r"web developer,engenheiro de software,web dev"
+)
+RELEVANCE_KEYWORDS = [
+    kw.strip() for kw in
+    os.environ.get("RELEVANCE_KEYWORDS", _DEFAULT_RELEVANCE).split(",")
+    if kw.strip()
+]
+
+# Termos amplos para a busca "what_or" da Adzuna (OR lógico) — pega muito mais
+# que a palavra-chave única, dentro da categoria it-jobs no Brasil.
+ADZUNA_BROAD_OR = os.environ.get(
+    "ADZUNA_BROAD_OR",
+    "desenvolvedor programador fullstack backend frontend react node python "
+    "php javascript typescript",
+)
 
 # --- Rede / retries (tratamento de erros de API) ---
 HTTP_TIMEOUT = 30          # segundos por requisição

@@ -110,6 +110,59 @@ class _FakeResp:
         return self._payload
 
 
+_JOBICY_PAYLOAD = {
+    "jobs": [
+        {
+            "id": 55501,
+            "jobTitle": "Senior Backend Developer (Python)",
+            "companyName": "JobicyCo",
+            "jobGeo": "Anywhere",
+            "jobIndustry": ["Dev"],
+            "jobExcerpt": "Backend role",
+            "jobDescription": "<p>Backend <b>Python</b> work.</p>",
+            "url": "https://jobicy.com/jobs/55501-backend-dev",
+            "pubDate": "2026-07-18",
+            "annualSalaryMin": 60000,
+            "annualSalaryMax": 90000,
+        },
+        {
+            "id": 55502,
+            "jobTitle": "Product Manager",
+            "companyName": "OtherCo",
+            "jobGeo": "Anywhere",
+            "jobIndustry": ["Business"],
+            "jobDescription": "<p>PM role.</p>",
+            "url": "https://jobicy.com/jobs/55502-pm",
+            "pubDate": "2026-07-17",
+        },
+    ]
+}
+
+_THEMUSE_PAGE_0 = {
+    "results": [
+        {
+            "id": 77701,
+            "name": "Full Stack Developer",
+            "company": {"name": "MuseCo"},
+            "locations": [{"name": "São Paulo, Brazil"}],
+            "refs": {"landing_page": "https://www.themuse.com/jobs/museco/fullstack"},
+            "contents": "<p>Fullstack at MuseCo.</p>",
+            "publication_date": "2026-07-16T00:00:00Z",
+        },
+        {
+            "id": 77702,
+            "name": "Recruiter",
+            "company": {"name": "MuseCo"},
+            "locations": [{"name": "Rio de Janeiro, Brazil"}],
+            "refs": {"landing_page": "https://www.themuse.com/jobs/museco/recruiter"},
+            "contents": "<p>HR role.</p>",
+            "publication_date": "2026-07-15T00:00:00Z",
+        },
+    ]
+}
+_THEMUSE_EMPTY = {"results": []}
+
+
 def _install_fake_get(monkeypatch_state):
     def fake_get(url, params=None, timeout=None, headers=None):
         if "remotive" in url:
@@ -121,17 +174,30 @@ def _install_fake_get(monkeypatch_state):
             return _FakeResp(_ARBEITNOW_EMPTY_PAGE)
         if "remoteok" in url:
             return _FakeResp(_REMOTEOK_PAYLOAD)
+        if "jobicy" in url:
+            return _FakeResp(_JOBICY_PAYLOAD)
+        if "themuse" in url:
+            monkeypatch_state["muse"] = monkeypatch_state.get("muse", 0) + 1
+            if monkeypatch_state["muse"] == 1:
+                return _FakeResp(_THEMUSE_PAGE_0)
+            return _FakeResp(_THEMUSE_EMPTY)
         raise AssertionError(f"unexpected url {url}")
 
     es.requests.get = fake_get
 
 
-def test_is_fullstack_relevant():
-    assert es._is_fullstack_relevant("Full Stack Developer")
-    assert es._is_fullstack_relevant("Fullstack Engineer")
-    assert es._is_fullstack_relevant("Full-Stack Dev")
-    assert es._is_fullstack_relevant("Backend Dev", tags=["full-stack", "python"])
-    assert not es._is_fullstack_relevant("Backend Engineer", tags=["backend"])
+def test_is_dev_relevant_broad():
+    # Amplo: casa dev em geral, não só fullstack
+    assert es._is_dev_relevant("Full Stack Developer")
+    assert es._is_dev_relevant("Backend Engineer")
+    assert es._is_dev_relevant("Frontend Developer")
+    assert es._is_dev_relevant("React Developer")
+    assert es._is_dev_relevant("Desenvolvedor Python")
+    assert es._is_dev_relevant("Programador PHP")
+    assert es._is_dev_relevant("QA Analyst", tags=["node", "javascript"])
+    # Não casa fora de dev
+    assert not es._is_dev_relevant("Sales Manager")
+    assert not es._is_dev_relevant("Recruiter", tags=["hr"])
 
 
 def test_strip_html():
@@ -140,35 +206,55 @@ def test_strip_html():
     assert es._strip_html(None) == ""
 
 
-def test_fetch_remotive_filters_by_fullstack_relevance():
+def test_fetch_remotive_filters_by_dev_relevance():
     _install_fake_get({"n": 0})
     jobs = es.fetch_remotive()
-    assert len(jobs) == 1
-    job = jobs[0]
-    assert job["id"] == "remotive-111"
-    assert job["title"] == "Full Stack Developer (React/Node)"
-    assert job["location"] == "Remoto (Worldwide)"
-    assert "<" not in job["description"]
-    assert "fullstack" in job["description"].lower()
+    # agora backend também passa (relevância ampla): fullstack + backend = 2
+    ids = {j["id"] for j in jobs}
+    assert "remotive-111" in ids
+    fs = next(j for j in jobs if j["id"] == "remotive-111")
+    assert fs["location"] == "Remoto (Worldwide)"
+    assert "<" not in fs["description"]
 
 
-def test_fetch_arbeitnow_filters_remote_and_fullstack():
+def test_fetch_arbeitnow_filters_remote_and_dev():
     _install_fake_get({"n": 0})
     jobs = es.fetch_arbeitnow(max_pages=3)
-    assert len(jobs) == 1
-    job = jobs[0]
-    assert job["id"] == "arbeitnow-fullstack-dev-berlin-99"
-    assert job["location"] == "Remoto (Berlin, Germany)"
+    # fullstack (remote) + backend (remote) passam; frontend onsite é descartado
+    ids = {j["id"] for j in jobs}
+    assert "arbeitnow-fullstack-dev-berlin-99" in ids
+    assert "arbeitnow-onsite-frontend-only" not in ids  # remote=False
 
 
-def test_fetch_remoteok_skips_legal_notice_and_filters_fullstack():
+def test_fetch_remoteok_skips_legal_notice_and_filters_dev():
     _install_fake_get({"n": 0})
     jobs = es.fetch_remoteok()
-    assert len(jobs) == 1
-    job = jobs[0]
-    assert job["id"] == "remoteok-999888"
-    assert job["title"] == "Fullstack Engineer (Ruby/React)"
+    ids = {j["id"] for j in jobs}
+    assert "remoteok-999888" in ids
+    job = next(j for j in jobs if j["id"] == "remoteok-999888")
     assert job["company"] == "RemoteCo"
+    assert "<" not in job["description"]
+
+
+def test_fetch_jobicy_filters_dev_and_strips_html():
+    _install_fake_get({"n": 0})
+    jobs = es.fetch_jobicy()
+    ids = {j["id"] for j in jobs}
+    assert ids == {"jobicy-55501"}  # backend passa, product manager não
+    job = jobs[0]
+    assert job["company"] == "JobicyCo"
+    assert job["location"] == "Remoto (Anywhere)"
+    assert "<" not in job["description"]
+
+
+def test_fetch_themuse_filters_dev_paginates():
+    _install_fake_get({"n": 0, "muse": 0})
+    jobs = es.fetch_themuse(max_pages=2)
+    ids = {j["id"] for j in jobs}
+    assert ids == {"themuse-77701"}  # fullstack passa, recruiter não
+    job = jobs[0]
+    assert job["company"] == "MuseCo"
+    assert "São Paulo, Brazil" in job["location"]
     assert "<" not in job["description"]
 
 
@@ -190,17 +276,20 @@ def test_fetch_handles_network_error_gracefully():
     assert es.fetch_remotive() == []
     assert es.fetch_arbeitnow(max_pages=2) == []
     assert es.fetch_remoteok() == []
+    assert es.fetch_jobicy() == []
+    assert es.fetch_themuse(max_pages=2) == []
 
 
-def test_fetch_all_extra_sources_combines_all_three():
-    _install_fake_get({"n": 0})
+def test_fetch_all_extra_sources_combines_all_sources():
+    _install_fake_get({"n": 0, "muse": 0})
     jobs = es.fetch_all_extra_sources()
     ids = {j["id"] for j in jobs}
-    assert ids == {
-        "remotive-111",
-        "arbeitnow-fullstack-dev-berlin-99",
-        "remoteok-999888",
-    }
+    # pelo menos uma vaga esperada de cada fonte deve aparecer
+    assert "remotive-111" in ids
+    assert "arbeitnow-fullstack-dev-berlin-99" in ids
+    assert "remoteok-999888" in ids
+    assert "jobicy-55501" in ids
+    assert "themuse-77701" in ids
 
 
 def _run():

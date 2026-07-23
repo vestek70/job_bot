@@ -11,37 +11,59 @@ search_jobs.py).
 
 Fontes:
 - Remotive (https://remotive.com/api/remote-jobs) — vagas remotas, JSON
-  público, sem necessidade de chave.
+  público, sem chave.
 - Arbeitnow (https://www.arbeitnow.com/api/job-board-api) — vagas
-  majoritariamente europeias/remotas, JSON público, sem necessidade de chave;
-  filtramos só as marcadas remote=true.
+  majoritariamente europeias/remotas, JSON público, sem chave; só remote=true.
+- RemoteOK (https://remoteok.com/api) — vagas remotas, JSON público, sem
+  chave (precisa de User-Agent explícito).
+- Jobicy (https://jobicy.com/api/v2/remote-jobs) — vagas remotas, JSON
+  público, sem chave.
+- The Muse (https://www.themuse.com/api/public/jobs) — engenharia de software,
+  filtrado por Brasil/remoto; único que também traz presenciais no Brasil (o
+  filtro de localização decide depois). Rate-limited sem chave.
 
-Ambas retornam essencialmente só vagas remotas — o que já combina com o
-filtro de localização do projeto (Florianópolis ou remoto, ver filters.py).
+Quase todas retornam só vagas remotas — o que já combina com o filtro de
+localização do projeto (Florianópolis ou remoto, ver filters.py).
 
-Limitação conhecida: nenhuma das duas tem busca por palavra-chave em
-português que funcione bem (conteúdo é majoritariamente em inglês). Em vez de
-tentar traduzir o termo de busca, filtramos por relevância "fullstack" via
-regex no título/tags — mais robusto do que confiar em tradução automática.
-Isso significa que estas fontes sempre trazem vagas fullstack, independente
-da palavra-chave passada em `python main.py "..."`.
+Limitação conhecida: essas fontes não têm busca por palavra-chave em português
+confiável (conteúdo majoritariamente em inglês). Em vez de traduzir o termo de
+busca, filtramos por relevância via regex de termos de dev
+(config.RELEVANCE_KEYWORDS — fullstack, backend, frontend, react, node, python,
+php, etc.) no título/tags. Assim as fontes trazem vagas de dev em geral,
+independentemente da palavra-chave passada em `python main.py "..."`.
 """
 import html as html_module
 import re
 import sys
+import unicodedata
 
 import requests
 
 import config
 
-_FULLSTACK_RE = re.compile(r"full[\s-]?stack", re.IGNORECASE)
+
+def _normalize(text: str) -> str:
+    """minúsculas + remove acentos, para casar 'programação' etc."""
+    text = (text or "").lower()
+    text = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in text if not unicodedata.combining(c))
 
 
-def _is_fullstack_relevant(title: str, tags: list = None) -> bool:
-    if _FULLSTACK_RE.search(title or ""):
+# Regex de relevância montada a partir de config.RELEVANCE_KEYWORDS (lista
+# ampla de termos de dev, não só "fullstack"). Compilada uma vez no import.
+_RELEVANCE_RE = re.compile(
+    "|".join(config.RELEVANCE_KEYWORDS) if config.RELEVANCE_KEYWORDS else r"$^"
+)
+
+
+def _is_dev_relevant(title: str, tags: list = None) -> bool:
+    """True se o título ou alguma tag casa com a lista de termos de dev
+    (config.RELEVANCE_KEYWORDS). Amplo de propósito — o filtro de senioridade
+    (filters.py) cuida de descartar níveis acima de pleno depois."""
+    if _RELEVANCE_RE.search(_normalize(title)):
         return True
     for tag in (tags or []):
-        if _FULLSTACK_RE.search(tag or ""):
+        if _RELEVANCE_RE.search(_normalize(tag)):
             return True
     return False
 
@@ -77,7 +99,7 @@ def fetch_remotive() -> list:
     for job in data.get("jobs", []):
         title = (job.get("title") or "").strip()
         tags = job.get("tags") or []
-        if not _is_fullstack_relevant(title, tags):
+        if not _is_dev_relevant(title, tags):
             continue
         location = job.get("candidate_required_location") or "não especificado"
         jobs.append(
@@ -119,7 +141,7 @@ def fetch_arbeitnow(max_pages: int = None) -> list:
                     continue
                 title = (job.get("title") or "").strip()
                 tags = job.get("tags") or []
-                if not _is_fullstack_relevant(title, tags):
+                if not _is_dev_relevant(title, tags):
                     continue
                 slug = job.get("slug") or re.sub(r"\W+", "-", title.lower()).strip("-")
                 jobs.append(
@@ -177,7 +199,7 @@ def fetch_remoteok() -> list:
             continue
         title = (job.get("position") or "").strip()
         tags = job.get("tags") or []
-        if not _is_fullstack_relevant(title, tags):
+        if not _is_dev_relevant(title, tags):
             continue
         location = job.get("location") or "não especificado"
         jobs.append(
@@ -196,6 +218,117 @@ def fetch_remoteok() -> list:
     return jobs
 
 
+def fetch_jobicy() -> list:
+    """Vagas remotas do Jobicy (API pública v2, sem chave), filtradas por
+    relevância de dev. Pedimos a indústria 'dev' e um count alto.
+
+    Aviso: formato baseado na API pública documentada (jobicy.com/jobs-rss-feed,
+    endpoint /api/v2/remote-jobs), não verificado ao vivo nesta sessão (rede
+    bloqueada na sandbox)."""
+    if not config.ENABLE_JOBICY:
+        return []
+    try:
+        resp = requests.get(
+            "https://jobicy.com/api/v2/remote-jobs",
+            params={"count": 50, "industry": "dev"},
+            headers={"User-Agent": "job-bot/1.0 (uso pessoal, busca de vagas)"},
+            timeout=config.HTTP_TIMEOUT,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except (requests.exceptions.RequestException, ValueError) as e:
+        print(f"AVISO: Jobicy indisponível ({e}), pulando esta fonte.",
+              file=sys.stderr)
+        return []
+
+    jobs = []
+    for job in data.get("jobs", []):
+        if not isinstance(job, dict):
+            continue
+        title = (job.get("jobTitle") or "").strip()
+        tags = job.get("jobIndustry") or []
+        if not title or not _is_dev_relevant(title, tags):
+            continue
+        location = job.get("jobGeo") or "não especificado"
+        jobs.append(
+            {
+                "id": f"jobicy-{job.get('id')}",
+                "title": title,
+                "company": job.get("companyName", ""),
+                "location": f"Remoto ({location})",
+                "salary_min": job.get("annualSalaryMin", ""),
+                "salary_max": job.get("annualSalaryMax", ""),
+                "description": _strip_html(
+                    job.get("jobDescription") or job.get("jobExcerpt", "")
+                ),
+                "redirect_url": job.get("url", ""),
+                "created": job.get("pubDate", ""),
+            }
+        )
+    return jobs
+
+
+def fetch_themuse(max_pages: int = 2) -> list:
+    """Vagas de engenharia de software do The Muse (API pública, sem chave)
+    filtradas por localização Brasil ou remoto/flexível. Diferente das outras
+    fontes extras, o Muse tem vagas presenciais no Brasil também — o filtro de
+    localização do projeto (filters.py) decide o que manter depois.
+
+    Aviso: formato baseado na API pública documentada (themuse.com/developers/
+    api/v2), não verificado ao vivo nesta sessão (rede bloqueada na sandbox).
+    A API é rate-limited para chamadas sem chave — por isso poucas páginas."""
+    if not config.ENABLE_THEMUSE:
+        return []
+    jobs = []
+    url = "https://www.themuse.com/api/public/jobs"
+    try:
+        for page in range(0, max_pages):
+            resp = requests.get(
+                url,
+                params={
+                    "category": "Software Engineering",
+                    "location": "Brazil",
+                    "page": page,
+                },
+                headers={"User-Agent": "job-bot/1.0 (uso pessoal, busca de vagas)"},
+                timeout=config.HTTP_TIMEOUT,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("results", [])
+            if not results:
+                break
+            for job in results:
+                if not isinstance(job, dict):
+                    continue
+                title = (job.get("name") or "").strip()
+                if not title or not _is_dev_relevant(title):
+                    continue
+                locs = job.get("locations") or []
+                loc_names = ", ".join(
+                    (loc.get("name") or "") for loc in locs if isinstance(loc, dict)
+                ) or "não especificado"
+                company = (job.get("company") or {}).get("name", "")
+                landing = (job.get("refs") or {}).get("landing_page", "")
+                jobs.append(
+                    {
+                        "id": f"themuse-{job.get('id')}",
+                        "title": title,
+                        "company": company,
+                        "location": loc_names,
+                        "salary_min": "",
+                        "salary_max": "",
+                        "description": _strip_html(job.get("contents", "")),
+                        "redirect_url": landing,
+                        "created": job.get("publication_date", ""),
+                    }
+                )
+    except (requests.exceptions.RequestException, ValueError) as e:
+        print(f"AVISO: The Muse indisponível ({e}), continuando com "
+              f"{len(jobs)} vaga(s) já obtida(s) dessa fonte.", file=sys.stderr)
+    return jobs
+
+
 def fetch_all_extra_sources() -> list:
     """Agrega todas as fontes extras habilitadas (além da Adzuna). Nunca
     lança exceção — cada fonte trata seus próprios erros e retorna []."""
@@ -203,4 +336,6 @@ def fetch_all_extra_sources() -> list:
     jobs.extend(fetch_remotive())
     jobs.extend(fetch_arbeitnow())
     jobs.extend(fetch_remoteok())
+    jobs.extend(fetch_jobicy())
+    jobs.extend(fetch_themuse())
     return jobs

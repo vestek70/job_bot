@@ -131,22 +131,34 @@ last 1-2 entries before starting work, to know what's already done.
 - [ ] Simple CLI review step: before spending DeepSeek API calls on every job
       found, let the user look at `jobs_found.csv` and pick which ones to tailor
       (`--only-ids 1,2,3` or an interactive picker).
-- [x] More search sources: added Remotive, Arbeitnow, and RemoteOK
-      (`extra_sources.py`) — all public JSON APIs, no login, no API key. All
-      three are remote-only by nature, which pairs naturally with the
+- [x] More search sources: added Remotive, Arbeitnow, RemoteOK, Jobicy, and
+      The Muse (`extra_sources.py`) — all public JSON APIs, no login, no API
+      key. Most are remote-only by nature (The Muse also returns Brazil
+      on-site, filtered down by the location filter), pairing with the
       location filter. No reliable Portuguese keyword search on any of them,
-      so all three are filtered by a "fullstack" relevance regex on
-      title/tags instead of the literal keyword string. Toggle individually
-      via `ENABLE_REMOTIVE`/`ENABLE_ARBEITNOW`/`ENABLE_REMOTEOK` in `.env`.
-      Parsing logic verified offline against fixtures matching each API's
-      documented schema (sandbox network egress blocks remotive.com/
-      arbeitnow.com/remoteok.com directly, same as it does Adzuna/DeepSeek —
-      live verification is on the user, locally; RemoteOK in particular has
-      not been hit with a real request at all in this project yet).
+      so all are filtered by a broad dev-relevance regex on title/tags
+      (`config.RELEVANCE_KEYWORDS` — fullstack/backend/frontend/react/node/
+      python/php/etc., broadened from the original fullstack-only). Toggle
+      individually via `ENABLE_REMOTIVE`/`ENABLE_ARBEITNOW`/`ENABLE_REMOTEOK`/
+      `ENABLE_JOBICY`/`ENABLE_THEMUSE` in `.env`. Parsing logic verified
+      offline against fixtures matching each API's documented schema (sandbox
+      network egress blocks these domains directly, same as Adzuna/DeepSeek —
+      live verification is on the user, locally; Remotive/Arbeitnow/RemoteOK
+      have been confirmed live by the user, Jobicy/The Muse not yet).
       Gupy/Vagas.com/InfoJobs/Catho were explicitly evaluated with the user
       on 2026-07-22 and declined for now (no public no-login API; scraping
       public pages carries ToS risk) — see PROGRESS_LOG.md. LinkedIn/login
       automation remains out of scope per the project's own hard constraint.
+- [x] Broadened Adzuna coverage: `search_jobs.py` now runs three Adzuna
+      passes (dedup by id) — the user keyword (`what`), a broad `what_or`
+      pass OR-ing many dev terms (`config.ADZUNA_BROAD_OR`), and the local
+      `where=HOME_CITY` pass — via a reusable `_collect_adzuna_pass` helper.
+      The broad `what_or` pass is the biggest volume lever within Brazil.
+- [x] Broadened remote-source relevance from fullstack-only to a
+      config-driven dev keyword set (`config.RELEVANCE_KEYWORDS`,
+      `extra_sources._is_dev_relevant`, accent-insensitive). This alone
+      multiplies matches from the remote sources (backend/frontend/react/
+      python postings now flow through instead of being dropped).
 - [x] Adzuna location-scoped reinforcement pass: `search_jobs.py` now also
       queries Adzuna with `where=HOME_CITY` (2 pages) in addition to the
       broad keyword search, to surface local Florianópolis listings that the
@@ -156,10 +168,11 @@ last 1-2 entries before starting work, to know what's already done.
       Adzuna's free-text search was excluding postings titled just "Pleno"
       that `filters.is_too_senior` would have kept anyway. Level filtering is
       now entirely the filter's job, not the search string's.
-- [~] Unit tests (`pytest`) for pure functions: started in `test_filters.py`
+- [~] Unit tests (`pytest`) for pure functions: `test_filters.py`
       (`slugify`, `is_too_senior`, `filter_out_senior`, `is_local_or_remote`,
       `filter_out_non_local`) and `test_extra_sources.py` (fixture-based
-      tests for Remotive/Arbeitnow/RemoteOK parsing). Still missing: CSV
+      tests for Remotive/Arbeitnow/RemoteOK/Jobicy/The Muse parsing +
+      broadened `_is_dev_relevant`). Still missing: CSV
       parsing, prompt building, Adzuna `_adzuna_job_to_dict`/reinforcement
       pass (needs a live-network-shaped mock, not done yet).
 

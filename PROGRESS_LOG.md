@@ -26,6 +26,89 @@
 
 ---
 
+## 2026-07-22 — Максимизация охвата: широкий фильтр релевантности, what_or, +2 источника
+
+### Контекст
+- Пользователь: "какой смысл, если вакансий мало? подключай всё возможное,
+  чтобы поиск работал на меня, а не 1 вакансия в день. Убери всё, что мешает
+  поиску." Диагноз: фильтры локации отсекают реально неподходящие вакансии
+  (офис в SP), это не проблема. Настоящие ограничители охвата — (1) удалённые
+  источники фильтровались только по слову "fullstack", отсекая
+  backend/frontend/react/python-вакансии, на которые пользователь тоже может
+  откликаться; (2) Adzuna искал по одному узкому ключевику.
+
+### Что сделано
+1. **Расширен фильтр релевантности** (`extra_sources._is_dev_relevant`, было
+   `_is_fullstack_relevant`): вместо одного "fullstack" — широкий набор
+   dev-терминов из `config.RELEVANCE_KEYWORDS` (fullstack, backend, frontend,
+   react, vue, angular, node, typescript, javascript, python, django, flask,
+   php, laravel, ruby, rails, .net, desenvolvedor, programador, software
+   engineer/developer, web developer, engenheiro de software). Регистр и
+   акценты игнорируются (`_normalize`). Переопределяется через
+   `RELEVANCE_KEYWORDS` в `.env`. Это главный рычаг — из удалённых источников
+   теперь проходят backend/frontend/react/python, а не только fullstack.
+2. **Adzuna — 3 прохода вместо 1** (`search_jobs._collect_adzuna_pass`,
+   переиспользуемый хелпер): (а) поиск по ключевику пользователя (`what`);
+   (б) широкий `what_or` = OR многих dev-терминов (`config.ADZUNA_BROAD_OR`) —
+   Adzuna поддерживает `what_or` для логического ИЛИ, это ловит на порядок
+   больше внутри Бразилии, чем один термин; (в) локальный проход
+   `where=Florianópolis` с тем же `what_or`. Дедуп по id между проходами.
+   `fetch_page` теперь принимает `what_or`.
+3. **+2 источника** (`extra_sources.py`): `fetch_jobicy()` (Jobicy v2 API,
+   без ключа) и `fetch_themuse()` (The Muse public API, без ключа, фильтр по
+   Бразилии/удалёнке — единственный источник, дающий и офисные вакансии в
+   Бразилии, которые дальше разруливает фильтр локации). Оба best-effort:
+   сетевая ошибка/смена формата → AVISO + пустой список, пайплайн не падает.
+   Итого 6 источников (Adzuna + Remotive + Arbeitnow + RemoteOK + Jobicy +
+   The Muse).
+4. Флаги `ENABLE_JOBICY`, `ENABLE_THEMUSE` в `config.py`.
+5. Тесты: `test_extra_sources.py` расширен — `test_is_dev_relevant_broad`
+   (проверяет backend/frontend/react/python проходят, sales/recruiter — нет),
+   fixture-тесты для Jobicy и The Muse, обновлены имена/ассерты старых тестов
+   под широкую релевантность, `fetch_all_extra_sources` проверен на 5
+   источников, сетевая ошибка — на всех 5.
+6. README/SPEC обновлены: таблица источников на 6 строк, раздел "почему мало"
+   переписан, зафиксированы `RELEVANCE_KEYWORDS`/`ADZUNA_BROAD_OR` как ручки
+   настройки.
+
+### Файлы изменены
+- `config.py` — `RELEVANCE_KEYWORDS`, `ADZUNA_BROAD_OR`, `ENABLE_JOBICY`,
+  `ENABLE_THEMUSE`.
+- `extra_sources.py` — `_normalize`, `_is_dev_relevant` (было
+  `_is_fullstack_relevant`), `fetch_jobicy`, `fetch_themuse`, обновлён
+  `fetch_all_extra_sources` и докстринг.
+- `search_jobs.py` — `_collect_adzuna_pass`, `fetch_page(what_or=...)`,
+  3-проходная логика.
+- `test_extra_sources.py` — новые/обновлённые тесты.
+- `README.md`, `SPEC.md` — документация.
+
+### Проверка
+- `py_compile` на всех `.py` — ок.
+- `python test_filters.py` — 13/13.
+- `python test_extra_sources.py` — 10/10 (было 8; переименованы под широкую
+  релевантность + добавлены Jobicy/The Muse).
+- Быстрый ручной прогон `_is_dev_relevant`: backend/frontend/react/python/
+  desenvolvedor/php проходят; sales/nurse/accountant — нет.
+- **Jobicy, The Muse, широкий what_or Adzuna НЕ проверены вживую** — сеть к
+  их доменам/эндпоинтам заблокирована в песочнице (та же причина). Формат
+  Jobicy/The Muse основан на задокументированных публичных API. Реальная
+  проверка — на пользователе, локально.
+
+### Дальше
+- Пользователю: `git add ...` + push + `python main.py "desenvolvedor
+  fullstack"` (или свой стек). В выводе смотреть новые строки: "+ N vaga(s)
+  via busca ampla", "+ N via busca local reforçada", "+ N de fontes extras
+  (.../Jobicy/The Muse)". Должно стать заметно больше вакансий.
+- Если Jobicy/The Muse выдадут `AVISO: ... indisponível` при живом
+  интернете — значит формат ответа отличается от задокументированного,
+  прислать вывод для правки парсинга (скрипт при этом не падает).
+- Осторожно с лимитами Adzuna free tier: теперь до ~3×MAX_PAGES вызовов за
+  прогон (3 прохода). При MAX_PAGES=3 это ~8 вызовов — в пределах бесплатного
+  тарифа, но если поднимать MAX_PAGES, следить за дневным лимитом.
+- Gupy/Catho/InfoJobs/LinkedIn по-прежнему не подключены (см. решение выше).
+
+---
+
 ## 2026-07-22 — Второй реальный прогон: RemoteOK работает; --force; фикс потери статуса
 
 ### Контекст
