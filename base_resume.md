@@ -4,18 +4,19 @@ Desenvolvedor de Software — Fullstack / Backend / Frontend
 Email: vestek70@gmail.com
 Localização: Florianópolis, SC, Brasil (aberto a remoto)
 GitHub: github.com/vestek70
+WhatsApp 48 988372452
 
 ## Resumo
-Desenvolvedor de software que aprende construindo produto de verdade. Coloquei um
-SaaS no ar do zero à produção (React + Supabase/PostgreSQL + Stripe), com assinantes
-pagantes reais, e cuido dele ponta a ponta: front-end, API, banco de dados,
-pagamentos e segurança. Trabalho num fluxo apoiado por IA (Claude Code, Kilo Code)
-para implementar e depurar mais rápido, mas as decisões de arquitetura, a revisão e a
-validação de cada mudança antes do deploy são minhas. Já lidei com o que dá trabalho
-de verdade: bugs de cobrança em produção, correção de falhas de segurança (RLS, IDOR,
-price tampering) e testes automatizados. Confortável tanto no back-end (Postgres,
-APIs, autenticação) quanto no front-end (React, JavaScript, PWA), e me adapto rápido a
-novas linguagens e ferramentas.
+Desenvolvedor de software fullstack que aprende construindo produto de verdade.
+Coloquei um SaaS no ar do zero à produção (React + Supabase/PostgreSQL + Stripe),
+hoje com assinantes pagantes reais, e cuido dele ponta a ponta: front-end, API, banco
+de dados, pagamentos e segurança. Já resolvi o que dá trabalho de verdade — bugs de
+cobrança em produção, falhas de segurança (RLS, IDOR, price tampering) e cobertura por
+testes automatizados. Confortável no back-end (PostgreSQL, APIs, autenticação) e no
+front-end (React, JavaScript, PWA). Uso ferramentas de IA (Claude Code, Kilo Code)
+para implementar e depurar mais rápido, mas a arquitetura, a revisão e a validação de
+cada mudança antes do deploy são minhas. Início de carreira, mas com produto real no
+ar; aprendo rápido e assumo responsabilidade de ponta a ponta.
 
 ## Projetos
 

@@ -108,8 +108,8 @@ def test_manual_routes_validation():
     r = c.post("/send_manual",
                json={"folder": "pasta-inexistente", "email": "x@y.com", "title": "t"})
     assert r.status_code == 400
-    # o formulário manual aparece na home
-    assert b"Colar vaga manualmente" in c.get("/").data
+    # o formulário manual aparece na home (rótulo agora em russo)
+    assert "Вставить вакансию вручную".encode("utf-8") in c.get("/").data
 
 
 def _run():

@@ -244,18 +244,20 @@ def render_page(jobs: list, search_links: list = None) -> str:
             for l in search_links
         )
         links_html = (
-            '<div class="links"><b>Buscar manualmente</b> (abre a busca no site — '
-            'candidate-se lá; sem scraping): ' + btns + '</div>'
+            '<div class="links"><b>Искать вручную</b> (открывает поиск на сайте — '
+            'откликаться там; без скрапинга): ' + btns + '</div>'
         )
     rows = []
     for j in jobs:
         tid = html.escape(j["id"], quote=True)
         email_badge = (f'<span class="badge email">✉ {html.escape(j["email"])}</span>'
-                       if j["email"] else '<span class="badge link">só link</span>')
+                       if j["email"] else '<span class="badge link">только ссылка</span>')
+        # ссылку "Открыть PDF" рендерим ВСЕГДА, но прячем, если резюме ещё нет —
+        # так JS после генерации просто показывает готовый элемент и не создаёт дубль
+        pdf_style = "" if j["has_resume"] else ' style="display:none"'
         resume_cell = (
-            f'<a class="btn small" href="/pdf/{html.escape(j["folder"], quote=True)}" '
-            f'target="_blank">Ver PDF</a>' if j["has_resume"]
-            else '<span class="muted">—</span>')
+            f'<a class="btn small pdf-link" href="/pdf/{html.escape(j["folder"], quote=True)}" '
+            f'target="_blank"{pdf_style}>Открыть PDF</a>')
         checkbox = (f'<input type="checkbox" class="sel" value="{tid}">'
                     if j["email"] else '')
         rows.append(f"""
@@ -264,16 +266,16 @@ def render_page(jobs: list, search_links: list = None) -> str:
           <td><div class="title">{html.escape(j["title"])}</div>
               <div class="muted">{html.escape(j["company"])} · {html.escape(j["location"])}</div>
               {email_badge}</td>
-          <td class="status">{'✅ pronto' if j['has_resume'] else '<span class="muted">não gerado</span>'}</td>
+          <td class="status">{'✅ готово' if j['has_resume'] else '<span class="muted">не создано</span>'}</td>
           <td>
-            <button class="btn gen" onclick="gerar(this, '{tid}')">Gerar currículo</button>
-            <a class="btn ghost" href="{html.escape(j["link"], quote=True)}" target="_blank">Abrir vaga</a>
+            <button class="btn gen" onclick="gerar(this, '{tid}')">Создать резюме</button>
+            <a class="btn ghost" href="{html.escape(j["link"], quote=True)}" target="_blank">Открыть вакансию</a>
             {resume_cell}
           </td>
         </tr>""")
     rows_html = "\n".join(rows) if rows else (
-        '<tr><td colspan="4" class="muted">Nenhuma vaga em jobs_found.csv. '
-        'Rode <code>python main.py "desenvolvedor fullstack"</code> primeiro.</td></tr>')
+        '<tr><td colspan="4" class="muted">В jobs_found.csv нет вакансий. '
+        'Сначала запусти <code>python main.py "desenvolvedor fullstack"</code>.</td></tr>')
 
     return (PAGE.replace("{{ROWS}}", rows_html)
                 .replace("{{COUNT}}", str(len(jobs)))
@@ -281,8 +283,8 @@ def render_page(jobs: list, search_links: list = None) -> str:
 
 
 PAGE = """<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8">
-<title>Job Bot — painel</title>
+<html lang="ru"><head><meta charset="UTF-8">
+<title>Job Bot — панель</title>
 <style>
   body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f4f4f2;color:#222;margin:0;padding:24px}
   h1{margin:0 0 4px} .sub{color:#555;margin:0 0 16px}
@@ -307,28 +309,28 @@ PAGE = """<!DOCTYPE html>
   .mform input,.mform textarea{font:inherit;padding:8px;border:1px solid #ccc;border-radius:6px}
   #log{font-size:13px;margin-left:auto;color:#444}
 </style></head><body>
-  <h1>Job Bot — painel</h1>
-  <p class="sub">{{COUNT}} vaga(s) em jobs_found.csv. Gere o currículo só nas que interessam; envie por e-mail as marcáveis.</p>
-  <div class="warn">Só é possível enviar automaticamente vagas com <b>e-mail de contato</b> (checkbox disponível). Vagas de plataforma: use <b>Abrir vaga</b> e candidate-se no site. Nada é enviado sem sua confirmação.</div>
+  <h1>Job Bot — панель</h1>
+  <p class="sub">{{COUNT}} вакансий в jobs_found.csv. Создавай резюме только под интересные; отправляй по e-mail отмеченные.</p>
+  <div class="warn">Автоматически отправить можно только вакансии с <b>контактным e-mail</b> (у них доступен чекбокс). Вакансии с площадок: жми <b>Открыть вакансию</b> и откликайся на сайте. Ничего не отправляется без твоего подтверждения.</div>
   {{LINKS}}
-  <details class="manual"><summary>➕ Colar vaga manualmente (achou no Vagas.com / Gupy / LinkedIn?)</summary>
+  <details class="manual"><summary>➕ Вставить вакансию вручную (нашёл на Vagas.com / Gupy / LinkedIn?)</summary>
     <div class="mform">
-      <div class="muted">Copie o TEXTO da vaga no site e cole abaixo. O bot gera um currículo sob medida para ela (nada é baixado do site — você copia, o bot só adapta).</div>
-      <input id="m_title" placeholder="Título da vaga * (ex.: Desenvolvedor Backend Python)">
-      <input id="m_company" placeholder="Empresa (opcional)">
-      <input id="m_link" placeholder="Link da vaga (opcional, para você abrir depois)">
-      <textarea id="m_desc" rows="7" placeholder="Cole aqui a descrição/requisitos da vaga *"></textarea>
-      <div><button class="btn" onclick="gerarManual()">Gerar currículo para esta vaga</button>
+      <div class="muted">Скопируй ТЕКСТ вакансии с сайта и вставь ниже. Бот создаст резюме под неё (ничего не качается с сайта — ты копируешь, бот только адаптирует).</div>
+      <input id="m_title" placeholder="Название вакансии * (напр.: Desenvolvedor Backend Python)">
+      <input id="m_company" placeholder="Компания (необязательно)">
+      <input id="m_link" placeholder="Ссылка на вакансию (необязательно, чтобы открыть потом)">
+      <textarea id="m_desc" rows="7" placeholder="Вставь сюда описание/требования вакансии *"></textarea>
+      <div><button class="btn" onclick="gerarManual()">Создать резюме под эту вакансию</button>
            <span id="mresult"></span></div>
     </div>
   </details>
   <div class="bar">
-    <button class="btn primary" onclick="enviar()">Enviar selecionados (e-mail)</button>
-    <span class="muted" id="selinfo">0 selecionadas</span>
+    <button class="btn primary" onclick="enviar()">Отправить выбранные (e-mail)</button>
+    <span class="muted" id="selinfo">0 выбрано</span>
     <span id="log"></span>
   </div>
   <table>
-    <thead><tr><th></th><th>Vaga</th><th>Currículo</th><th>Ações</th></tr></thead>
+    <thead><tr><th></th><th>Вакансия</th><th>Резюме</th><th>Действия</th></tr></thead>
     <tbody>{{ROWS}}</tbody>
   </table>
 <script>
@@ -340,15 +342,19 @@ function updSel(){
 document.addEventListener('change',e=>{if(e.target.classList.contains('sel'))updSel();});
 
 async function gerar(btn,id){
-  btn.disabled=true;const old=btn.textContent;btn.textContent='Gerando…';setLog('Gerando currículo…');
+  btn.disabled=true;const old=btn.textContent;btn.textContent='Создаю…';setLog('Создаю резюме…');
   try{
     const r=await fetch('/tailor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});
     const d=await r.json();
-    if(d.ok){btn.textContent='Gerado ✓';const cell=btn.closest('tr').querySelector('.status');cell.innerHTML='✅ pronto';
-      const a=document.createElement('a');a.className='btn small';a.target='_blank';a.href='/pdf/'+d.folder;a.textContent='Ver PDF';btn.parentNode.appendChild(a);
-      setLog('Currículo gerado.');}
-    else{btn.disabled=false;btn.textContent=old;setLog('Erro: '+d.error);}
-  }catch(e){btn.disabled=false;btn.textContent=old;setLog('Erro de rede: '+e);}
+    if(d.ok){btn.disabled=false;btn.textContent=old;
+      const cell=btn.closest('tr').querySelector('.status');cell.innerHTML='✅ готово';
+      // используем уже существующую ссылку в строке — не создаём вторую
+      let a=btn.parentNode.querySelector('.pdf-link');
+      if(!a){a=document.createElement('a');a.className='btn small pdf-link';a.target='_blank';a.textContent='Открыть PDF';btn.parentNode.appendChild(a);}
+      a.href='/pdf/'+d.folder;a.style.display='';
+      setLog('Резюме создано.');}
+    else{btn.disabled=false;btn.textContent=old;setLog('Ошибка: '+d.error);}
+  }catch(e){btn.disabled=false;btn.textContent=old;setLog('Ошибка сети: '+e);}
 }
 
 async function gerarManual(){
@@ -357,37 +363,37 @@ async function gerarManual(){
   const company=document.getElementById('m_company').value.trim();
   const link=document.getElementById('m_link').value.trim();
   const out=document.getElementById('mresult');
-  if(!title||!description){alert('Preencha o título e cole o texto da vaga.');return;}
-  out.textContent=' Gerando…';
+  if(!title||!description){alert('Заполни название и вставь текст вакансии.');return;}
+  out.textContent=' Создаю…';
   try{
     const r=await fetch('/tailor_manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description,company,link})});
     const d=await r.json();
-    if(!d.ok){out.textContent=' Erro: '+d.error;return;}
-    out.innerHTML=' ✅ Pronto — <a class="btn small" target="_blank" href="/pdf/'+d.folder+'">Ver PDF</a>';
+    if(!d.ok){out.textContent=' Ошибка: '+d.error;return;}
+    out.innerHTML=' ✅ Готово — <a class="btn small" target="_blank" href="/pdf/'+d.folder+'">Открыть PDF</a>';
     if(d.email){
-      const b=document.createElement('button');b.className='btn small';b.textContent='Enviar p/ '+d.email;
+      const b=document.createElement('button');b.className='btn small';b.textContent='Отправить на '+d.email;
       b.onclick=async()=>{
-        if(!confirm('Enviar seu currículo para '+d.email+'?'))return;
-        b.disabled=true;b.textContent='Enviando…';
+        if(!confirm('Отправить твоё резюме на '+d.email+'?'))return;
+        b.disabled=true;b.textContent='Отправляю…';
         const rr=await fetch('/send_manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({folder:d.folder,email:d.email,title:d.title})});
-        const dd=await rr.json();b.textContent=dd.ok?('✓ '+dd.msg):('Erro: '+dd.error);
+        const dd=await rr.json();b.textContent=dd.ok?('✓ '+dd.msg):('Ошибка: '+dd.error);
       };
       out.appendChild(document.createTextNode(' '));out.appendChild(b);
     }
-  }catch(e){out.textContent=' Erro de rede: '+e;}
+  }catch(e){out.textContent=' Ошибка сети: '+e;}
 }
 
 async function enviar(){
   const ids=[...document.querySelectorAll('.sel:checked')].map(c=>c.value);
-  if(!ids.length){alert('Marque ao menos uma vaga com e-mail de contato.');return;}
-  if(!confirm('Enviar seu currículo por e-mail para '+ids.length+' vaga(s)? Isso envia de verdade.'))return;
-  setLog('Enviando…');
+  if(!ids.length){alert('Отметь хотя бы одну вакансию с контактным e-mail.');return;}
+  if(!confirm('Отправить твоё резюме по e-mail в '+ids.length+' вакансий? Отправка настоящая.'))return;
+  setLog('Отправляю…');
   try{
     const r=await fetch('/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});
     const d=await r.json();
     const ok=d.results.filter(x=>x.ok).length;
-    setLog('Enviadas: '+ok+'/'+d.results.length+'. '+d.results.map(x=>x.msg).join(' | '));
-  }catch(e){setLog('Erro de rede: '+e);}
+    setLog('Отправлено: '+ok+'/'+d.results.length+'. '+d.results.map(x=>x.msg).join(' | '));
+  }catch(e){setLog('Ошибка сети: '+e);}
 }
 </script>
 </body></html>"""
