@@ -11,6 +11,7 @@ qualquer e-mail com send_application.py. Nada é enviado sozinho.
 import argparse
 import sys
 
+import dashboard
 import tailor_resume
 from search_jobs import save_jobs_csv, search_jobs
 
@@ -41,6 +42,7 @@ def main():
         "alguns minutos)..."
     )
     tailor_resume.main()
+    dashboard.main()
 
 
 if __name__ == "__main__":
