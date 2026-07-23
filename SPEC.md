@@ -118,11 +118,15 @@ last 1-2 entries before starting work, to know what's already done.
       `main.py` after tailoring. Nothing is sent or opened automatically.
 - [x] Location filter: candidate isn't willing to relocate. `filters.py`
       (`is_local_or_remote`/`filter_out_non_local`) keeps only jobs in
-      `config.HOME_CITY` (Florianópolis, default) or explicitly signaled as
-      remote (title/location/description) — drops on-site jobs elsewhere, even
-      with an ambiguous location like "Brasil" if no remote signal is present
-      (conservative by design). Toggle off with `--any-location`. Covered by
-      `test_filters.py`.
+      `config.HOME_CITY` (Florianópolis, default) or remote-and-reachable-from-
+      Brazil. Drops on-site jobs elsewhere. For INTERNATIONAL sources
+      (remotive-/arbeitnow-/remoteok-/jobicy-/themuse- id prefixes) a remote
+      job must be Brazil or genuinely global (worldwide/anywhere/flexible/
+      LatAm) — `_remote_region_ok` drops jobs geo-locked to another country
+      (e.g. "Remoto (Berlin)", "Remoto (México)", India-only), which the
+      German/Mexico/India leaks on the first big run exposed. Adzuna (numeric
+      ids) and Jooble are BR APIs, trusted as Brazil (no region check). Toggle
+      off with `--any-location`. Covered by `test_filters.py`.
 
 ### P1 — usability and quality
 - [ ] Track "already processed" jobs across runs (currently `tailor_resume.py`

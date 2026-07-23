@@ -146,23 +146,64 @@ def _is_remote(title: str, location: str, description: str) -> bool:
     return bool(_REMOTE_RE.search(combined))
 
 
+# Fontes internacionais (id com esses prefixos) podem trazer vagas remotas
+# presas a OUTRO país (ex.: "Remoto (Berlin)", "Remoto (México)"), que não
+# servem para quem mora no Brasil (idioma + geo). A Adzuna (ids numéricos) é
+# API do Brasil e o Jooble é agregador do Brasil — nesses confiamos que é
+# Brasil. Só as internacionais passam pela checagem de região.
+_INTL_SOURCE_PREFIXES = (
+    "remotive-", "arbeitnow-", "remoteok-", "jobicy-", "themuse-",
+)
+
+# Tokens de "remoto global" (aceita Brasil) — removidos ao checar se sobra um
+# lugar estrangeiro específico na localização.
+_GLOBAL_REMOTE_TOKENS = re.compile(
+    r"worldwide|anywhere|global|flexible|remote|remot[ao]s?|home.?office|"
+    r"nao especificado|not specified|unspecified|"
+    r"latam|latin america|america latina|americas|south america|america do sul"
+)
+_BRAZIL_TOKENS = ("brasil", "brazil", "florianopolis", "floripa", "santa catarina")
+
+
+def _remote_region_ok(location: str) -> bool:
+    """Para vagas remotas de fontes internacionais: True se a região aceita
+    quem está no Brasil — ou seja, menciona Brasil, OU é remoto genuinamente
+    global (worldwide/anywhere/flexible/LatAm) SEM um lugar estrangeiro
+    específico. 'Remoto (Berlin)' -> False; 'Flexible / Remote' -> True."""
+    loc = _normalize(location)
+    if any(tok in loc for tok in _BRAZIL_TOKENS):
+        return True
+    # Remove tokens de remoto-global e pontuação; se sobrar algum nome de lugar,
+    # é uma vaga presa a um local estrangeiro específico -> descarta.
+    residue = _GLOBAL_REMOTE_TOKENS.sub(" ", loc)
+    residue = re.sub(r"[()/,\-.]", " ", residue)
+    residue = re.sub(r"\s+", " ", residue).strip()
+    return residue == ""
+
+
 def is_local_or_remote(job: dict, home_city: str = "Florianópolis") -> bool:
     """
     True se a vaga é aceitável para quem não quer se mudar de cidade:
     - a vaga é na cidade-base (`home_city`, ex.: Florianópolis/Floripa), OU
-    - a vaga é sinalizada como remota (no título, local ou descrição).
+    - a vaga é remota E acessível do Brasil (ver _remote_region_ok para as
+      fontes internacionais).
 
     Conservador: se não há nenhum sinal de remoto e a localização não é a
-    cidade-base, a vaga é descartada (mesmo que a localização esteja vazia/
-    ambígua) — preferimos perder uma vaga remota mal rotulada a sugerir uma
-    vaga presencial fora da cidade.
+    cidade-base, a vaga é descartada.
     """
     location = job.get("location", "")
     title = job.get("title", "")
     description = job.get("description", "")
     if _is_home_city(location, home_city):
         return True
-    return _is_remote(title, location, description)
+    if not _is_remote(title, location, description):
+        return False
+    # Vaga remota. Se veio de fonte internacional, exige região que aceite o
+    # Brasil (descarta 'Remoto (Berlin)', 'Remoto (México)', India-only, etc.).
+    job_id = str(job.get("id", ""))
+    if job_id.startswith(_INTL_SOURCE_PREFIXES):
+        return _remote_region_ok(location)
+    return True
 
 
 def filter_out_non_local(jobs: list, home_city: str = "Florianópolis") -> tuple:

@@ -128,6 +128,31 @@ def test_filter_out_irrelevant_splits():
     assert len(dropped) == 2
 
 
+def test_intl_remote_foreign_country_is_dropped():
+    # fontes internacionais presas a outro país -> descartadas
+    for loc in ["Remoto (Berlin)", "Remoto (Markt Indersdorf)",
+                "Remoto (Ciudad de México, México)",
+                "Bangalore, India, Flexible / Remote"]:
+        job = {"id": "arbeitnow-x", "title": "Developer", "location": loc,
+               "description": ""}
+        assert not is_local_or_remote(job), loc
+
+
+def test_intl_remote_global_is_kept():
+    for loc in ["Flexible / Remote", "Remoto (Worldwide)", "Remoto (Anywhere)",
+                "Remoto (Brazil)", "Remoto (Latin America)"]:
+        job = {"id": "themuse-1", "title": "Developer", "location": loc,
+               "description": ""}
+        assert is_local_or_remote(job), loc
+
+
+def test_adzuna_brazilian_remote_is_kept_even_without_brasil_literal():
+    # Adzuna (id numérico) é BR por construção — SP remoto deve ficar
+    job = {"id": "5730218698", "title": "Dev Remoto",
+           "location": "São Paulo, Estado de São Paulo", "description": ""}
+    assert is_local_or_remote(job)
+
+
 def test_slugify():
     assert slugify("Empresa X Ltda.") == "empresa-x-ltda"
     assert slugify("Dev Full-Stack (Remoto)") == "dev-full-stack-remoto"

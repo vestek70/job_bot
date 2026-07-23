@@ -229,9 +229,9 @@ def search_jobs(keywords: str = None, max_pages: int = None,
     if filter_location:
         kept, dropped = filter_out_non_local(all_jobs, home_city=config.HOME_CITY)
         if dropped:
-            print(f"Filtradas {len(dropped)} vaga(s) presenciais fora de "
-                  f"{config.HOME_CITY} e sem sinal de remoto "
-                  f"(use --any-location para incluí-las).")
+            print(f"Filtradas {len(dropped)} vaga(s) fora de {config.HOME_CITY}: "
+                  f"presenciais em outra cidade OU remotas presas a outro país "
+                  f"(ex.: Alemanha) (use --any-location para incluí-las).")
         all_jobs = kept
 
     return all_jobs
