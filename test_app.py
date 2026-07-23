@@ -59,6 +59,24 @@ def test_send_email_sem_credenciais_levanta():
         config.GMAIL_ADDRESS, config.GMAIL_APP_PASSWORD = ga, gp
 
 
+def test_build_search_links():
+    import app as flask_app
+    links = flask_app.build_search_links("desenvolvedor fullstack", "Florianópolis")
+    names = [l["name"] for l in links]
+    assert any("Vagas.com" in n for n in names)
+    assert any("Gupy" == n for n in names)
+    assert any("Catho" == n for n in names)
+    assert any("InfoJobs" == n for n in names)
+    by = {l["name"]: l["url"] for l in links}
+    # slug sem acento e com hífen
+    assert "vagas-de-desenvolvedor-fullstack" in by["Vagas.com"]
+    # acento de Florianópolis normalizado no slug do link local
+    floripa = next(u for n, u in by.items() if "Vagas.com (" in n)
+    assert "florianopolis" in floripa and "ó" not in floripa
+    # LinkedIn com keyword url-encoded
+    assert "keywords=desenvolvedor%20fullstack" in by["LinkedIn"]
+
+
 def test_flask_routes():
     import app as flask_app
     c = flask_app.app.test_client()
@@ -75,6 +93,23 @@ def test_flask_routes():
     # tailor de id inexistente -> 404 tratado
     r = c.post("/tailor", json={"id": "id-que-nao-existe"})
     assert r.status_code == 404
+
+
+def test_manual_routes_validation():
+    import app as flask_app
+    c = flask_app.app.test_client()
+    # tailor_manual sem título/texto -> 400 tratado
+    r = c.post("/tailor_manual", json={"title": "", "description": ""})
+    assert r.status_code == 400 and r.get_json()["ok"] is False
+    # send_manual sem dados -> 400
+    r = c.post("/send_manual", json={})
+    assert r.status_code == 400 and r.get_json()["ok"] is False
+    # send_manual com pasta sem currículo -> 400 (gere antes)
+    r = c.post("/send_manual",
+               json={"folder": "pasta-inexistente", "email": "x@y.com", "title": "t"})
+    assert r.status_code == 400
+    # o formulário manual aparece na home
+    assert b"Colar vaga manualmente" in c.get("/").data
 
 
 def _run():

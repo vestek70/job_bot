@@ -18,6 +18,9 @@ Roda só localmente (127.0.0.1) — nada é exposto para a internet.
 import csv
 import html
 import os
+import re
+import unicodedata
+import urllib.parse
 
 from flask import Flask, jsonify, request, send_from_directory
 
@@ -82,12 +85,43 @@ def _find_job(job_id: str):
     return None
 
 
+def _slug(text: str) -> str:
+    text = unicodedata.normalize("NFKD", (text or "").lower())
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    return re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+
+
+def build_search_links(keyword: str = None, location: str = None) -> list:
+    """Links de BUSCA (não scraping) para plataformas que não têm API pública:
+    abrem a página de busca já com seus critérios, para você revisar e se
+    candidatar manualmente no site. Legal e sem risco de bloqueio."""
+    kw = keyword or config.SEARCH_KEYWORDS
+    loc = location or config.HOME_CITY
+    kw_enc = urllib.parse.quote(kw)
+    loc_enc = urllib.parse.quote(loc)
+    kw_slug = _slug(kw)
+    loc_slug = _slug(loc)
+    return [
+        {"name": "Vagas.com", "url": f"https://www.vagas.com.br/vagas-de-{kw_slug}"},
+        {"name": f"Vagas.com ({loc})",
+         "url": f"https://www.vagas.com.br/vagas-de-{kw_slug}-em-{loc_slug}-sc"},
+        {"name": "Gupy", "url": f"https://portal.gupy.io/job-search/term={kw_enc}"},
+        {"name": "Catho", "url": f"https://www.catho.com.br/vagas/{kw_slug}/"},
+        {"name": "InfoJobs",
+         "url": f"https://www.infojobs.com.br/vagas-de-emprego-{kw_slug}.aspx"},
+        {"name": "LinkedIn",
+         "url": f"https://www.linkedin.com/jobs/search/?keywords={kw_enc}"
+                f"&location={loc_enc}"},
+    ]
+
+
 # ---------------------------------------------------------------- rotas -------
 
 @app.route("/")
 def index():
+    kw = request.args.get("q") or config.SEARCH_KEYWORDS
     jobs = [job_view(j) for j in load_jobs()]
-    return render_page(jobs)
+    return render_page(jobs, build_search_links(kw))
 
 
 @app.route("/tailor", methods=["POST"])
@@ -103,6 +137,61 @@ def tailor():
         return jsonify(ok=False, error=str(e)), 500
     view = job_view(job)
     return jsonify(ok=True, has_resume=view["has_resume"], folder=view["folder"])
+
+
+@app.route("/tailor_manual", methods=["POST"])
+def tailor_manual():
+    """Gera currículo para uma vaga que VOCÊ colou (achou manualmente numa
+    plataforma). Legal: você navega e copia o texto; o bot só adapta o
+    currículo. Não faz fetch/scraping de link."""
+    import hashlib
+    data = request.json or {}
+    title = (data.get("title") or "").strip()
+    description = (data.get("description") or "").strip()
+    company = (data.get("company") or "").strip() or "vaga-manual"
+    link = (data.get("link") or "").strip()
+    if not title or not description:
+        return jsonify(ok=False,
+                       error="Preencha o título e cole o texto da vaga."), 400
+    jid = "manual-" + hashlib.sha1(
+        (title + "|" + description).encode("utf-8")).hexdigest()[:10]
+    job = {
+        "id": jid, "title": title, "company": company,
+        "location": (data.get("location") or "").strip() or "informado manualmente",
+        "description": description, "redirect_url": link,
+    }
+    try:
+        client = _get_client()
+        folder = tailor_resume.tailor_and_save(client, _base_resume(), job)
+    except Exception as e:  # noqa: BLE001
+        return jsonify(ok=False, error=str(e)), 500
+    return jsonify(
+        ok=True,
+        folder=os.path.basename(folder.rstrip("/\\")),
+        title=title,
+        email=tailor_resume.extract_email(description, link),
+    )
+
+
+@app.route("/send_manual", methods=["POST"])
+def send_manual():
+    """Envia por e-mail o currículo de uma vaga colada manualmente."""
+    data = request.json or {}
+    folder_name = os.path.basename((data.get("folder") or "").rstrip("/\\"))
+    email = (data.get("email") or "").strip()
+    title = (data.get("title") or "vaga").strip()
+    if not folder_name or not email:
+        return jsonify(ok=False, error="Faltam pasta ou e-mail."), 400
+    target_dir = os.path.join(config.OUTPUT_DIR, folder_name)
+    attachment = send_application.resume_attachment(target_dir)
+    if not os.path.exists(attachment):
+        return jsonify(ok=False, error="Gere o currículo antes de enviar."), 400
+    subject, body = send_application.subject_and_body(title)
+    try:
+        send_application.send_email(email, subject, body, attachment)
+    except send_application.SendError as e:
+        return jsonify(ok=False, error=str(e)), 500
+    return jsonify(ok=True, msg=f"enviado p/ {email}")
 
 
 @app.route("/send", methods=["POST"])
@@ -146,7 +235,18 @@ def pdf(folder):
 
 # ---------------------------------------------------------------- html --------
 
-def render_page(jobs: list) -> str:
+def render_page(jobs: list, search_links: list = None) -> str:
+    links_html = ""
+    if search_links:
+        btns = " ".join(
+            f'<a class="btn ghost small" href="{html.escape(l["url"], quote=True)}" '
+            f'target="_blank" rel="noopener">{html.escape(l["name"])}</a>'
+            for l in search_links
+        )
+        links_html = (
+            '<div class="links"><b>Buscar manualmente</b> (abre a busca no site — '
+            'candidate-se lá; sem scraping): ' + btns + '</div>'
+        )
     rows = []
     for j in jobs:
         tid = html.escape(j["id"], quote=True)
@@ -175,7 +275,9 @@ def render_page(jobs: list) -> str:
         '<tr><td colspan="4" class="muted">Nenhuma vaga em jobs_found.csv. '
         'Rode <code>python main.py "desenvolvedor fullstack"</code> primeiro.</td></tr>')
 
-    return PAGE.replace("{{ROWS}}", rows_html).replace("{{COUNT}}", str(len(jobs)))
+    return (PAGE.replace("{{ROWS}}", rows_html)
+                .replace("{{COUNT}}", str(len(jobs)))
+                .replace("{{LINKS}}", links_html))
 
 
 PAGE = """<!DOCTYPE html>
@@ -198,11 +300,28 @@ PAGE = """<!DOCTYPE html>
   .btn:disabled{opacity:.5;cursor:default}
   .btn.primary{background:#b4622b;border-color:#b4622b}
   .warn{background:#fff4e5;border:1px solid #f0c36d;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:12px}
+  .links{background:#eef2f4;border:1px solid #d5dde0;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:12px}
+  .manual{background:#fff;border:1px solid #d5dde0;border-radius:8px;padding:8px 14px;font-size:13px;margin-bottom:12px}
+  .manual summary{cursor:pointer;font-weight:600}
+  .mform{display:flex;flex-direction:column;gap:8px;margin-top:10px;max-width:720px}
+  .mform input,.mform textarea{font:inherit;padding:8px;border:1px solid #ccc;border-radius:6px}
   #log{font-size:13px;margin-left:auto;color:#444}
 </style></head><body>
   <h1>Job Bot — painel</h1>
   <p class="sub">{{COUNT}} vaga(s) em jobs_found.csv. Gere o currículo só nas que interessam; envie por e-mail as marcáveis.</p>
   <div class="warn">Só é possível enviar automaticamente vagas com <b>e-mail de contato</b> (checkbox disponível). Vagas de plataforma: use <b>Abrir vaga</b> e candidate-se no site. Nada é enviado sem sua confirmação.</div>
+  {{LINKS}}
+  <details class="manual"><summary>➕ Colar vaga manualmente (achou no Vagas.com / Gupy / LinkedIn?)</summary>
+    <div class="mform">
+      <div class="muted">Copie o TEXTO da vaga no site e cole abaixo. O bot gera um currículo sob medida para ela (nada é baixado do site — você copia, o bot só adapta).</div>
+      <input id="m_title" placeholder="Título da vaga * (ex.: Desenvolvedor Backend Python)">
+      <input id="m_company" placeholder="Empresa (opcional)">
+      <input id="m_link" placeholder="Link da vaga (opcional, para você abrir depois)">
+      <textarea id="m_desc" rows="7" placeholder="Cole aqui a descrição/requisitos da vaga *"></textarea>
+      <div><button class="btn" onclick="gerarManual()">Gerar currículo para esta vaga</button>
+           <span id="mresult"></span></div>
+    </div>
+  </details>
   <div class="bar">
     <button class="btn primary" onclick="enviar()">Enviar selecionados (e-mail)</button>
     <span class="muted" id="selinfo">0 selecionadas</span>
@@ -230,6 +349,32 @@ async function gerar(btn,id){
       setLog('Currículo gerado.');}
     else{btn.disabled=false;btn.textContent=old;setLog('Erro: '+d.error);}
   }catch(e){btn.disabled=false;btn.textContent=old;setLog('Erro de rede: '+e);}
+}
+
+async function gerarManual(){
+  const title=document.getElementById('m_title').value.trim();
+  const description=document.getElementById('m_desc').value.trim();
+  const company=document.getElementById('m_company').value.trim();
+  const link=document.getElementById('m_link').value.trim();
+  const out=document.getElementById('mresult');
+  if(!title||!description){alert('Preencha o título e cole o texto da vaga.');return;}
+  out.textContent=' Gerando…';
+  try{
+    const r=await fetch('/tailor_manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title,description,company,link})});
+    const d=await r.json();
+    if(!d.ok){out.textContent=' Erro: '+d.error;return;}
+    out.innerHTML=' ✅ Pronto — <a class="btn small" target="_blank" href="/pdf/'+d.folder+'">Ver PDF</a>';
+    if(d.email){
+      const b=document.createElement('button');b.className='btn small';b.textContent='Enviar p/ '+d.email;
+      b.onclick=async()=>{
+        if(!confirm('Enviar seu currículo para '+d.email+'?'))return;
+        b.disabled=true;b.textContent='Enviando…';
+        const rr=await fetch('/send_manual',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({folder:d.folder,email:d.email,title:d.title})});
+        const dd=await rr.json();b.textContent=dd.ok?('✓ '+dd.msg):('Erro: '+dd.error);
+      };
+      out.appendChild(document.createTextNode(' '));out.appendChild(b);
+    }
+  }catch(e){out.textContent=' Erro de rede: '+e;}
 }
 
 async function enviar(){
