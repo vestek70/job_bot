@@ -329,6 +329,64 @@ def fetch_themuse(max_pages: int = 2) -> list:
     return jobs
 
 
+def fetch_jooble() -> list:
+    """Vagas do Jooble — agregador legítimo com API pública (POST, precisa de
+    chave gratuita em config.JOOBLE_API_KEY). NÃO é scraping: o Jooble agrega
+    vagas de vários sites do Brasil e as expõe via API oficial.
+
+    Faz duas buscas: uma local (HOME_CITY) e uma remota (Brasil + "remoto").
+    O filtro de localização do projeto (filters.py) decide o que manter depois.
+    Como o Jooble tem busca por palavra-chave em português de verdade, NÃO
+    aplicamos o filtro de relevância aqui — a query já mira dev.
+
+    Aviso: formato baseado na API pública documentada do Jooble
+    (https://jooble.org/api/about), não verificado ao vivo nesta sessão."""
+    if not config.ENABLE_JOOBLE or not config.JOOBLE_API_KEY:
+        return []
+    url = f"https://jooble.org/api/{config.JOOBLE_API_KEY}"
+    queries = [
+        {"keywords": config.SEARCH_KEYWORDS, "location": config.HOME_CITY},
+        {"keywords": f"{config.SEARCH_KEYWORDS} remoto", "location": "Brasil"},
+    ]
+    jobs = []
+    local_seen = set()
+    try:
+        for q in queries:
+            resp = requests.post(
+                url, json=q,
+                headers={"Content-Type": "application/json",
+                         "User-Agent": "job-bot/1.0 (uso pessoal, busca de vagas)"},
+                timeout=config.HTTP_TIMEOUT,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            for job in data.get("jobs", []):
+                if not isinstance(job, dict):
+                    continue
+                title = (job.get("title") or "").strip()
+                jid = f"jooble-{job.get('id')}"
+                if not title or jid in local_seen:
+                    continue
+                local_seen.add(jid)
+                jobs.append(
+                    {
+                        "id": jid,
+                        "title": title,
+                        "company": job.get("company", ""),
+                        "location": job.get("location", ""),
+                        "salary_min": "",
+                        "salary_max": job.get("salary", ""),
+                        "description": _strip_html(job.get("snippet", "")),
+                        "redirect_url": job.get("link", ""),
+                        "created": job.get("updated", ""),
+                    }
+                )
+    except (requests.exceptions.RequestException, ValueError) as e:
+        print(f"AVISO: Jooble indisponível ({e}), continuando com "
+              f"{len(jobs)} vaga(s) já obtida(s) dessa fonte.", file=sys.stderr)
+    return jobs
+
+
 def fetch_all_extra_sources() -> list:
     """Agrega todas as fontes extras habilitadas (além da Adzuna). Nunca
     lança exceção — cada fonte trata seus próprios erros e retorna []."""
@@ -338,4 +396,5 @@ def fetch_all_extra_sources() -> list:
     jobs.extend(fetch_remoteok())
     jobs.extend(fetch_jobicy())
     jobs.extend(fetch_themuse())
+    jobs.extend(fetch_jooble())
     return jobs

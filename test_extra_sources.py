@@ -162,6 +162,47 @@ _THEMUSE_PAGE_0 = {
 }
 _THEMUSE_EMPTY = {"results": []}
 
+_JOOBLE_LOCAL = {
+    "totalCount": 1,
+    "jobs": [
+        {
+            "id": 900001,
+            "title": "Desenvolvedor Fullstack Pleno",
+            "location": "Florianópolis, SC",
+            "snippet": "<b>React</b> e Node em Floripa.",
+            "salary": "R$ 8000",
+            "company": "FloripaTech",
+            "link": "https://jooble.org/jdp/900001",
+            "updated": "2026-07-20T00:00:00",
+        }
+    ],
+}
+_JOOBLE_REMOTE = {
+    "totalCount": 2,
+    "jobs": [
+        {
+            "id": 900002,
+            "title": "Desenvolvedor Backend (Remoto)",
+            "location": "Brasil",
+            "snippet": "Python remoto.",
+            "salary": "",
+            "company": "RemotaBR",
+            "link": "https://jooble.org/jdp/900002",
+            "updated": "2026-07-19T00:00:00",
+        },
+        {
+            # duplicado do local (mesmo id) — não deve aparecer 2x
+            "id": 900001,
+            "title": "Desenvolvedor Fullstack Pleno",
+            "location": "Florianópolis, SC",
+            "snippet": "dup",
+            "company": "FloripaTech",
+            "link": "https://jooble.org/jdp/900001",
+            "updated": "2026-07-20T00:00:00",
+        },
+    ],
+}
+
 
 def _install_fake_get(monkeypatch_state):
     def fake_get(url, params=None, timeout=None, headers=None):
@@ -183,7 +224,16 @@ def _install_fake_get(monkeypatch_state):
             return _FakeResp(_THEMUSE_EMPTY)
         raise AssertionError(f"unexpected url {url}")
 
+    def fake_post(url, json=None, timeout=None, headers=None):
+        if "jooble" in url:
+            loc = (json or {}).get("location", "")
+            if "Florian" in loc:
+                return _FakeResp(_JOOBLE_LOCAL)
+            return _FakeResp(_JOOBLE_REMOTE)
+        raise AssertionError(f"unexpected POST url {url}")
+
     es.requests.get = fake_get
+    es.requests.post = fake_post
 
 
 def test_is_dev_relevant_broad():
@@ -258,6 +308,33 @@ def test_fetch_themuse_filters_dev_paginates():
     assert "<" not in job["description"]
 
 
+def test_fetch_jooble_two_queries_dedup():
+    import config
+    original_key = config.JOOBLE_API_KEY
+    config.JOOBLE_API_KEY = "TEST-KEY"
+    _install_fake_get({"n": 0, "muse": 0})
+    try:
+        jobs = es.fetch_jooble()
+    finally:
+        config.JOOBLE_API_KEY = original_key
+    ids = {j["id"] for j in jobs}
+    # local (900001) + remoto (900002); duplicado 900001 na 2a query some
+    assert ids == {"jooble-900001", "jooble-900002"}
+    local = next(j for j in jobs if j["id"] == "jooble-900001")
+    assert local["location"] == "Florianópolis, SC"
+    assert "<" not in local["description"]
+
+
+def test_fetch_jooble_without_key_returns_empty():
+    import config
+    original_key = config.JOOBLE_API_KEY
+    config.JOOBLE_API_KEY = None
+    try:
+        assert es.fetch_jooble() == []  # sem chave, inativo
+    finally:
+        config.JOOBLE_API_KEY = original_key
+
+
 def test_fetch_remotive_disabled_returns_empty(monkeypatch=None):
     import config
     original = config.ENABLE_REMOTIVE
@@ -269,15 +346,25 @@ def test_fetch_remotive_disabled_returns_empty(monkeypatch=None):
 
 
 def test_fetch_handles_network_error_gracefully():
+    import config
     def broken_get(url, params=None, timeout=None, headers=None):
+        raise es.requests.exceptions.ConnectionError("no network")
+    def broken_post(url, json=None, timeout=None, headers=None):
         raise es.requests.exceptions.ConnectionError("no network")
 
     es.requests.get = broken_get
-    assert es.fetch_remotive() == []
-    assert es.fetch_arbeitnow(max_pages=2) == []
-    assert es.fetch_remoteok() == []
-    assert es.fetch_jobicy() == []
-    assert es.fetch_themuse(max_pages=2) == []
+    es.requests.post = broken_post
+    original_key = config.JOOBLE_API_KEY
+    config.JOOBLE_API_KEY = "TEST-KEY"
+    try:
+        assert es.fetch_remotive() == []
+        assert es.fetch_arbeitnow(max_pages=2) == []
+        assert es.fetch_remoteok() == []
+        assert es.fetch_jobicy() == []
+        assert es.fetch_themuse(max_pages=2) == []
+        assert es.fetch_jooble() == []
+    finally:
+        config.JOOBLE_API_KEY = original_key
 
 
 def test_fetch_all_extra_sources_combines_all_sources():

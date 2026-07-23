@@ -159,6 +159,17 @@ last 1-2 entries before starting work, to know what's already done.
       `extra_sources._is_dev_relevant`, accent-insensitive). This alone
       multiplies matches from the remote sources (backend/frontend/react/
       python postings now flow through instead of being dropped).
+- [x] Added Jooble (`extra_sources.fetch_jooble`) — a legitimate job
+      aggregator with a public POST API (free key `JOOBLE_API_KEY`), NOT
+      scraping. Best Brazil/Florianópolis coverage of all sources; has real
+      Portuguese keyword search so it bypasses the relevance regex. Two
+      queries per run (local HOME_CITY + remote Brasil), deduped. Inactive
+      without a key. Schema from documented API, not live-verified in sandbox.
+      Decided WITH the user (2026-07-22) as the legal alternative to Apify/
+      RapidAPI LinkedIn scrapers, which the user considered but declined —
+      those still violate LinkedIn's ToS even though they don't touch the
+      user's personal account. LinkedIn scraping (direct or via third-party
+      actors) stays out of scope.
 - [x] Adzuna location-scoped reinforcement pass: `search_jobs.py` now also
       queries Adzuna with `where=HOME_CITY` (2 pages) in addition to the
       broad keyword search, to surface local Florianópolis listings that the

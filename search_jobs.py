@@ -199,7 +199,7 @@ def search_jobs(keywords: str = None, max_pages: int = None,
     extra_jobs = fetch_all_extra_sources()
     if extra_jobs:
         print(f"+ {len(extra_jobs)} vaga(s) de fontes extras (Remotive/Arbeitnow/"
-              f"RemoteOK/Jobicy/The Muse).")
+              f"RemoteOK/Jobicy/The Muse/Jooble).")
     for job in extra_jobs:
         if job.get("id") in seen_ids:
             continue

@@ -69,6 +69,15 @@ ENABLE_REMOTEOK = os.environ.get("ENABLE_REMOTEOK", "1") not in ("0", "false", "
 ENABLE_JOBICY = os.environ.get("ENABLE_JOBICY", "1") not in ("0", "false", "")
 ENABLE_THEMUSE = os.environ.get("ENABLE_THEMUSE", "1") not in ("0", "false", "")
 
+# Jooble — agregador legítimo com API pública (não é scraping): agrega vagas de
+# vários sites do Brasil, incluindo postagens que se originam em plataformas.
+# Precisa de chave gratuita: https://jooble.org/api/about . Sem chave, a fonte
+# fica inativa silenciosamente. Diferente das fontes remotas em inglês, o Jooble
+# tem busca por palavra-chave em português de verdade — então não passa pelo
+# filtro de relevância, a própria query já mira dev.
+JOOBLE_API_KEY = os.environ.get("JOOBLE_API_KEY")
+ENABLE_JOOBLE = os.environ.get("ENABLE_JOOBLE", "1") not in ("0", "false", "")
+
 # Relevância: as fontes remotas (Remotive/Arbeitnow/RemoteOK/Jobicy) não têm
 # busca por palavra-chave confiável, então filtramos as vagas por relevância
 # no título/tags. Antes era só "fullstack" — restritivo demais para quem também
