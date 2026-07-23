@@ -1,0 +1,159 @@
+# Job Bot — поиск вакансий и адаптация резюме (Бразилия, IT/fullstack)
+
+Полуавтоматический инструмент: ищет вакансии, готовит адаптированную версию резюме
+под каждую, но **ничего не отправляет без вашего подтверждения**.
+
+## Как это работает
+
+1. `search_jobs.py` — ищет вакансии через открытый API Adzuna (покрывает Бразилию).
+2. `tailor_resume.py` — берёт `base_resume.md` и через Anthropic API готовит версию,
+   заточенную под конкретную вакансию (без выдумывания опыта — только переформулировка
+   и расстановка акцентов на реальных фактах).
+3. Результаты складываются в `applications/<компания>_<вакансия>/` — там лежит
+   `resume.md` и `job_info.txt` со ссылкой на вакансию.
+4. Вы просматриваете `applications/index.csv`, открываете нужные вакансии и
+   откликаетесь вручную через сайт компании/площадки, либо (если в вакансии указан
+   email) используете `send_application.py` — он тоже спросит подтверждение перед
+   отправкой.
+
+## Почему нет полностью автоматической отправки
+
+LinkedIn, Gupy, Catho, InfoJobs и большинство площадок в Бразилии не дают открытого
+API для отклика от лица пользователя и прямо запрещают автоматизацию в условиях
+использования — риск блокировки аккаунта. Поэтому отклик через эти площадки нужно
+подтверждать вручную (открыть ссылку → загрузить готовый файл резюме). Email-рассылка
+доступна только когда в вакансии есть прямой контактный email.
+
+## Настройка
+
+### 1. Установить зависимости
+```bash
+pip install -r requirements.txt --break-system-packages
+```
+
+### 2. Получить ключи Adzuna (бесплатно)
+Зарегистрируйтесь на https://developer.adzuna.com/signup — вы получите `app_id` и
+`app_key`. Бесплатного тарифа достаточно для личного использования.
+
+### 3. Получить ключ Anthropic API
+На https://console.anthropic.com — нужен для адаптации резюме под вакансии.
+
+### 4. (Опционально) Настроить Gmail для отправки
+Если хотите использовать `send_application.py` — создайте "пароль приложения" на
+https://myaccount.google.com/apppasswords для аккаунта vestek70@gmail.com.
+
+### 5. Задать ключи
+Проще всего — открыть файл `.env` (уже создан, в `.gitignore`, в репозиторий не
+попадёт) и вписать значения:
+```
+ADZUNA_APP_ID=ваш_app_id
+ADZUNA_APP_KEY=ваш_app_key
+ANTHROPIC_API_KEY=ваш_ключ
+GMAIL_APP_PASSWORD=пароль_приложения   # опционально
+```
+`config.py` подхватит их автоматически через `python-dotenv` (уже в
+`requirements.txt`). Альтернатива — переменные окружения в шелле:
+```bash
+export ADZUNA_APP_ID="ваш_app_id"
+export ADZUNA_APP_KEY="ваш_app_key"
+export ANTHROPIC_API_KEY="ваш_ключ"
+```
+
+## Запуск
+
+```bash
+python main.py "desenvolvedor fullstack junior"
+```
+
+Это найдёт вакансии и создаст адаптированные резюме в `applications/`. Дальше:
+
+1. Откройте `applications/index.csv` — там компания, вакансия, ссылка, статус.
+2. Прочитайте `resume.md` в каждой папке, поправьте при необходимости.
+3. Экспортируйте в PDF/DOCX перед отправкой (можно попросить меня об этом для
+   конкретных вакансий).
+4. Откликайтесь по ссылке вручную, или, если есть email — используйте:
+```bash
+python send_application.py applications/empresa_vaga_123 email@empresa.com
+```
+
+## Доп. источник вакансий: ai-dev-jobs-mcp (опционально, для AI/ML-ролей)
+
+Если ищете именно AI/ML-вакансии (не общий fullstack), можно подключить бесплатный
+MCP-сервер `ai-dev-jobs-mcp` прямо к AI-агенту в VS Code (не к Python-скриптам —
+это read-only MCP-сервер, не REST API, поэтому он не встроен в `search_jobs.py`).
+Не требует ключей:
+
+```bash
+claude mcp add --transport http ai-dev-jobs https://aidevboard.com/mcp
+```
+
+Остальные инструменты из каталога "Agentic Awesome Skills" (`mcp skills/`) сознательно
+не подключены — см. `SECURITY_REVIEW.md` в этой папке, там разбор по каждому и почему.
+
+## Подключение к GitHub (github.com/vestek70/job_bot)
+
+**⚠️ Сначала удалите вручную папку `.git`** в `D:\Bot_job\job_bot\` — я попытался
+сделать `git init` отсюда, но подключённый диск (сетевой mount) не даёт git
+нормально писать/удалять служебные файлы, и осталась битая недоинициализированная
+папка `.git` с зависшим `index.lock`. Я не могу её удалить с этой стороны (нет прав
+на mount) — удалите вручную через проводник Windows или командой в VS Code:
+```powershell
+Remove-Item -Recurse -Force ".git"
+```
+
+Дальше — инициализация и первый пуш. Делайте это **из терминала VS Code на вашем
+компьютере**, не через меня: так GitHub-авторизация пройдёт через браузер безопасно,
+без передачи токена в чат.
+
+```bash
+git init -b main
+git add -A
+git commit -m "Initial commit: job_bot"
+git remote add origin https://github.com/vestek70/job_bot.git
+git push -u origin main
+```
+
+Git запросит авторизацию в GitHub (через браузер или Git Credential Manager,
+обычно уже настроен в VS Code) — просто следуйте подсказке.
+
+### Какие MCP реально нужны для этого проекта
+
+Сравнил с рабочим `.mcp.json`/`.kilo/kilo.jsonc` из вашего проекта `D:\PLATFORMA 5`
+(там 9 серверов — filesystem, sequential-thinking, brave-search, github-mcp-server,
+supabase-mcp-server, gcp/gmp-code-assist, floripa-portuguese, context7, gsc). Для
+`job_bot` большинство из них не нужны — они завязаны на тот конкретный проект
+(Google Search Console для albinaborisova.com.br, кастомный MCP-сервер
+floripa-portuguese и т.д.). Реально полезны только два, и я уже подготовил для них
+`.mcp.json` в этой папке:
+
+| MCP | Зачем | Нужен ключ? |
+|---|---|---|
+| **github-mcp-server** | Управлять репозиторием `job_bot` прямо из агента (коммиты, issues, PR) без ручных git-команд | Да — `GITHUB_PERSONAL_ACCESS_TOKEN` (создать: github.com → Settings → Developer settings → Personal access tokens, права: `repo`) |
+| **context7** | Актуальная документация библиотек (requests, anthropic SDK и т.д.) прямо во время работы агента в VS Code | Нет |
+
+Остальные из конфига `PLATFORMA 5` — **не нужны** для `job_bot`:
+- `filesystem` — не нужен, VS Code/Claude Code уже имеет доступ к диску напрямую.
+- `supabase-mcp-server` — пригодится, только если решите хранить историю вакансий
+  в базе вместо CSV (backlog P2 в `SPEC.md`) — пока не требуется.
+- `sequential-thinking`, `gcp-code-assist`/`gmp-code-assist`, `gsc`,
+  `floripa-portuguese` — специфичны для проекта Albina Borisova, к `job_bot`
+  отношения не имеют.
+
+Чтобы подключить `github-mcp-server`, задайте токен переменной окружения (в `.env`
+или в шелле) и подключите через Claude Code:
+```bash
+claude mcp add-json github-mcp-server '{"type":"http","url":"https://api.githubcopilot.com/mcp/","headers":{"Authorization":"Bearer '"$GITHUB_PERSONAL_ACCESS_TOKEN"'"}}'
+```
+Или просто используйте уже созданный `.mcp.json` в этой папке — Claude Code подхватит
+его автоматически при открытии проекта, если переменная `GITHUB_PERSONAL_ACCESS_TOKEN`
+задана в окружении.
+
+## Важно перед использованием
+
+- **Перед первым запуском обязательно допишите `base_resume.md`** — там два плейсхолдера
+  ([PLACEHOLDER: ...]) для проекта SkillMeth и точного уровня португальского.
+- Проверяйте каждое сгенерированное резюме перед отправкой — модель не выдумывает
+  опыт по инструкции, но лучше перепроверить самостоятельно.
+- Меняйте `SEARCH_KEYWORDS` (в `config.py` или как аргумент к `main.py`) под разные
+  формулировки: "desenvolvedor fullstack", "desenvolvedor junior", "programador
+  full stack" и т.д. — на бразильском рынке используются разные термины.

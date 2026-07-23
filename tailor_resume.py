@@ -1,0 +1,171 @@
+"""
+Gera uma versão do currículo (base_resume.md) adaptada para cada vaga em jobs_found.csv.
+
+Usa a API da Anthropic para reescrever ênfase/palavras-chave — SEM inventar
+experiência, empresas ou tecnologias que não estão no currículo base.
+
+Requer variável de ambiente ANTHROPIC_API_KEY.
+
+Cada resultado é salvo em applications/<empresa>_<vaga>/resume.md para VOCÊ revisar
+antes de enviar. Nada é enviado automaticamente por este script.
+"""
+import csv
+import os
+import re
+import sys
+
+import anthropic
+
+import config
+
+TAILOR_PROMPT = """You are a career assistant. Below is a candidate's BASE resume \
+(a complete, detailed fact base — longer than a normal resume) and a job posting.
+
+Your task: produce a SHORT, ready-to-send resume by selecting and prioritizing ONLY \
+the REAL parts of the base resume that are relevant to this specific job.
+
+IMPORTANT RULES:
+- Target length: about ONE printed page (roughly 400-550 words total, not counting \
+header/contact info). Cut aggressively anything not relevant to this specific job —
+you do NOT have to use all the content from the base resume.
+- From the projects, pick only the bullet points (architecture, payments, security, \
+AI, testing, etc.) most relevant to this job — usually 4 to 7 bullets total across \
+projects, not the full list.
+- Do NOT invent professional experience, companies, job titles, years of experience, \
+technologies, or certifications that are not in the base resume.
+- You may rephrase sentences, reorder sections, and emphasize existing skills that \
+match the job.
+- You may add a short summary (2-3 lines) connecting the candidate's profile to the \
+job, but using only facts from the base resume.
+- Keep the same field of work (fullstack development) — do not adapt it into a \
+different profession.
+- If the job asks for a specific technology that is not in the base resume, do NOT \
+claim the candidate knows it — at most mention willingness to learn, if it makes sense.
+- Write the output in Brazilian Portuguese, in Markdown, using the same section \
+structure as the base resume, but condensed per the rules above.
+
+ATS-FRIENDLY FORMATTING (so parsers like Workday, Taleo, Greenhouse read it correctly):
+- Plain Markdown only: no tables, no icons/emoji, no text boxes. Standard section \
+headings (e.g. "Resumo", "Experiência", "Formação", not creative alternatives).
+- Bullet character: "-" only.
+- Spell out acronyms on first use, e.g. "Row Level Security (RLS)".
+
+BANNED PHRASES — do not use any of these (rewrite with concrete evidence instead):
+results-driven, dynamic individual, highly motivated, team player, proven track \
+record, passionate about, detail-oriented, self-starter, hard worker, strong \
+communication skills, synergy, thought leader, go-getter, outside the box, \
+people person, visionary, change agent — and their direct Portuguese equivalents \
+(ex.: "apaixonado por", "dinâmico", "proativo" usado como enchimento vazio).
+
+FINAL CHECK before output (do not output until every item passes):
+- No fabricated title, company, technology, metric, or certification.
+- No banned phrase from the list above.
+- Length is within the ~400-550 word target.
+- Tense is consistent (past for finished work, present for anything ongoing).
+
+BASE RESUME (complete fact source — do not copy everything, select from it):
+---
+{resume}
+---
+
+JOB POSTING ({title} — {company}):
+---
+{description}
+---
+
+Output only the tailored resume in Markdown, no extra commentary."""
+
+
+def slugify(text: str) -> str:
+    text = (text or "").lower().strip()
+    text = re.sub(r"[^a-z0-9]+", "-", text)
+    return text.strip("-")[:60] or "vaga"
+
+
+def load_jobs(path: str = None) -> list:
+    path = path or config.JOBS_CSV
+    with open(path, encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def load_base_resume(path: str = "base_resume.md") -> str:
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def tailor_one(client, base_resume: str, job: dict) -> str:
+    prompt = TAILOR_PROMPT.format(
+        resume=base_resume,
+        title=job["title"],
+        company=job["company"],
+        description=(job["description"] or "")[:4000],
+    )
+    message = client.messages.create(
+        model="claude-sonnet-4-5",
+        max_tokens=2000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return message.content[0].text
+
+
+def main():
+    if not config.ANTHROPIC_API_KEY:
+        print(
+            "ERRO: defina ANTHROPIC_API_KEY para gerar currículos adaptados.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    base_resume = load_base_resume()
+    jobs = load_jobs()
+
+    os.makedirs(config.OUTPUT_DIR, exist_ok=True)
+
+    index_rows = []
+    for job in jobs:
+        folder_name = f"{slugify(job['company'])}_{slugify(job['title'])}_{job['id']}"
+        folder_path = os.path.join(config.OUTPUT_DIR, folder_name)
+        os.makedirs(folder_path, exist_ok=True)
+
+        resume_path = os.path.join(folder_path, "resume.md")
+        if os.path.exists(resume_path):
+            print(f"Já existe, pulando: {resume_path}")
+        else:
+            print(f"Adaptando currículo para: {job['title']} @ {job['company']}...")
+            tailored = tailor_one(client, base_resume, job)
+            with open(resume_path, "w", encoding="utf-8") as f:
+                f.write(tailored)
+
+        with open(os.path.join(folder_path, "job_info.txt"), "w", encoding="utf-8") as f:
+            f.write(f"Título: {job['title']}\n")
+            f.write(f"Empresa: {job['company']}\n")
+            f.write(f"Local: {job['location']}\n")
+            f.write(f"Link para candidatura: {job['redirect_url']}\n")
+
+        index_rows.append(
+            {
+                "empresa": job["company"],
+                "vaga": job["title"],
+                "pasta": folder_path,
+                "link_candidatura": job["redirect_url"],
+                "status": "aguardando revisão",
+            }
+        )
+
+    index_path = os.path.join(config.OUTPUT_DIR, "index.csv")
+    with open(index_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(
+            f, fieldnames=["empresa", "vaga", "pasta", "link_candidatura", "status"]
+        )
+        writer.writeheader()
+        writer.writerows(index_rows)
+
+    print(
+        f"\nPronto. Revise os currículos em '{config.OUTPUT_DIR}/' e o resumo em "
+        f"'{index_path}' ANTES de se candidatar ou enviar qualquer coisa."
+    )
+
+
+if __name__ == "__main__":
+    main()

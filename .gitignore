@@ -1,0 +1,9 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Generated data — contains job search results and drafted resumes
+jobs_found.csv
+applications/
