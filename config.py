@@ -77,6 +77,18 @@ ENABLE_THEMUSE = os.environ.get("ENABLE_THEMUSE", "1") not in ("0", "false", "")
 # filtro de relevância, a própria query já mira dev.
 JOOBLE_API_KEY = os.environ.get("JOOBLE_API_KEY")
 ENABLE_JOOBLE = os.environ.get("ENABLE_JOOBLE", "1") not in ("0", "false", "")
+# NOTA (confirmado via debug_jooble.py, 2026-07-23): nesta conta free-tier o
+# Jooble responde a "Brazil" (inglês, não "Brasil") e a termos em inglês
+# ("developer" traz ~47 vagas; "desenvolvedor" traz 0). Por isso consultamos em
+# inglês + location "Brazil"; o filtro de localização/relevância refina depois.
+JOOBLE_LOCATION = os.environ.get("JOOBLE_LOCATION", "Brazil")
+JOOBLE_QUERIES = [
+    kw.strip() for kw in os.environ.get(
+        "JOOBLE_QUERIES",
+        "developer,fullstack developer,software engineer,"
+        "react developer,python developer,desenvolvedor",
+    ).split(",") if kw.strip()
+]
 
 # Relevância: usada para descartar vagas que NÃO são de desenvolvimento (a
 # busca ampla da Adzuna e as fontes remotas trazem muita coisa fora de dev —

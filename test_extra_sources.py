@@ -226,8 +226,10 @@ def _install_fake_get(monkeypatch_state):
 
     def fake_post(url, json=None, timeout=None, headers=None):
         if "jooble" in url:
-            loc = (json or {}).get("location", "")
-            if "Florian" in loc:
+            # queries agora são por palavra-chave (location fixo "Brazil");
+            # 1ª query traz o job local, as demais o remoto (para testar dedup).
+            monkeypatch_state["jooble"] = monkeypatch_state.get("jooble", 0) + 1
+            if monkeypatch_state["jooble"] == 1:
                 return _FakeResp(_JOOBLE_LOCAL)
             return _FakeResp(_JOOBLE_REMOTE)
         raise AssertionError(f"unexpected POST url {url}")

@@ -26,6 +26,60 @@
 
 ---
 
+## 2026-07-23 — Jooble отдавал 0: причина — язык запроса (нужен английский + "Brazil")
+
+### Контекст
+- После добавления разбивки по источникам стало видно: Jooble = 0 (при том что
+  Remotive 19, RemoteOK 29, The Muse 18, Arbeitnow 5 работают). Ключ валиден.
+- Написал `debug_jooble.py` (временный), пользователь запустил. Результат
+  однозначный: ключ работает (HTTP 200), но **португальские запросы дают 0**, а
+  английские — данные:
+  - `desenvolvedor` + `Florianópolis`/`Brasil` → totalCount 0;
+  - `developer` + `Brazil` (англ.) → totalCount 47, 30 вакансий (включая
+    Brazil-вакансии, напр. Wikimedia Senior SE);
+  - `programador` + `` → 4 (Puerto Rico и т.п.).
+  Вывод: на этом free-tier аккаунте Jooble индексирует/отвечает по-английски и
+  на `location=Brazil` (не `Brasil`).
+
+### Что сделано
+- `config.py`: `JOOBLE_LOCATION` (default "Brazil") и `JOOBLE_QUERIES`
+  (default английские: developer, fullstack developer, software engineer,
+  react developer, python developer, + desenvolvedor на всякий), оба
+  переопределяются через `.env`.
+- `extra_sources.fetch_jooble`: переписан — вместо 2 португальских запросов
+  (Floripa/Brasil) шлёт по одному запросу на каждый `JOOBLE_QUERIES` с
+  `location=JOOBLE_LOCATION`, дедуп по id. Считает `totalCount`; если суммарно
+  0 — печатает понятный AVISO (ключ ещё активируется / подстрой queries).
+  Локация вакансий («Brazil») дальше проходит штатные фильтры (Jooble не в
+  списке intl-префиксов → гео-проверку пропускает, считается бразильским).
+- `test_extra_sources.py`: `fake_post` обновлён под запросы-по-ключевому-слову
+  (1-й запрос → local job, остальные → remote, для проверки дедупа). 12/12.
+- README дополнен объяснением про английские запросы к Jooble.
+
+### Файлы изменены
+- `config.py` — `JOOBLE_LOCATION`, `JOOBLE_QUERIES`.
+- `extra_sources.py` — переписан `fetch_jooble`.
+- `test_extra_sources.py` — `fake_post`.
+- `README.md` — раздел Jooble.
+- `debug_jooble.py` — временный диагностический скрипт (НЕ коммитить в основную
+  ветку без нужды; можно удалить).
+
+### Проверка
+- `py_compile` — ок. `test_extra_sources.py` 12/12, `test_filters.py` 22/22.
+- Реальный ответ Jooble подтверждён через `debug_jooble.py` на машине
+  пользователя (см. цифры выше). Новый `fetch_jooble` вживую в этой сессии не
+  прогонялся (сеть в песочнице) — но формат запроса теперь совпадает с тем, что
+  вернул 47 вакансий в debug.
+
+### Дальше
+- Пользователю: перезапустить `python main.py "desenvolvedor fullstack"` —
+  теперь в строке «Fontes extras» Jooble должен показать не 0. `debug_jooble.py`
+  можно удалить (`Remove-Item debug_jooble.py`).
+- Jobicy по-прежнему 0/AVISO (эндпоинт не отдаёт JSON) — если мешает, поставить
+  `ENABLE_JOBICY=0`.
+
+---
+
 ## 2026-07-23 — Прозрачность источников: разбивка по фонтам в выводе
 
 ### Контекст

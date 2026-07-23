@@ -319,22 +319,21 @@ def fetch_jooble() -> list:
     if not config.ENABLE_JOOBLE or not config.JOOBLE_API_KEY:
         return []
     url = f"https://jooble.org/api/{config.JOOBLE_API_KEY}"
-    queries = [
-        {"keywords": config.SEARCH_KEYWORDS, "location": config.HOME_CITY},
-        {"keywords": f"{config.SEARCH_KEYWORDS} remoto", "location": "Brasil"},
-    ]
     jobs = []
     local_seen = set()
+    total_reported = 0
     try:
-        for q in queries:
+        for kw in config.JOOBLE_QUERIES:
             resp = requests.post(
-                url, json=q,
+                url,
+                json={"keywords": kw, "location": config.JOOBLE_LOCATION},
                 headers={"Content-Type": "application/json",
                          "User-Agent": "job-bot/1.0 (uso pessoal, busca de vagas)"},
                 timeout=config.HTTP_TIMEOUT,
             )
             resp.raise_for_status()
             data = resp.json()
+            total_reported += data.get("totalCount", 0) or 0
             for job in data.get("jobs", []):
                 if not isinstance(job, dict):
                     continue
@@ -359,6 +358,11 @@ def fetch_jooble() -> list:
     except (requests.exceptions.RequestException, ValueError) as e:
         print(f"AVISO: Jooble indisponível ({e}), continuando com "
               f"{len(jobs)} vaga(s) já obtida(s) dessa fonte.", file=sys.stderr)
+    if not jobs and total_reported == 0:
+        print("AVISO: Jooble retornou 0 vagas para todas as queries. Se a chave "
+              "é nova, pode levar horas para ativar; ou ajuste JOOBLE_QUERIES/"
+              "JOOBLE_LOCATION no .env (termos em inglês + 'Brazil' funcionam).",
+              file=sys.stderr)
     return jobs
 
 
