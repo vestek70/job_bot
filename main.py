@@ -5,6 +5,7 @@ Uso:
   python main.py "desenvolvedor fullstack junior"
   python main.py "desenvolvedor fullstack" --include-senior
   python main.py "desenvolvedor fullstack" --any-location
+  python main.py "desenvolvedor fullstack" --force   # regera currículos já existentes
 
 Depois, revise manualmente a pasta applications/ antes de se candidatar ou enviar
 qualquer e-mail com send_application.py. Nada é enviado sozinho.
@@ -30,6 +31,10 @@ def main():
                         help=f"não descartar vagas presenciais fora de "
                              f"{config.HOME_CITY} (por padrão só ficam vagas em "
                              f"{config.HOME_CITY} ou remotas)")
+    parser.add_argument("--force", action="store_true",
+                        help="regerar resume.md mesmo para vagas já processadas "
+                             "em execuções anteriores (útil depois de editar "
+                             "base_resume.md ou o prompt)")
     args = parser.parse_args(sys.argv[1:])
 
     print("Buscando vagas na Adzuna...")
@@ -48,7 +53,7 @@ def main():
         "Gerando currículos adaptados (usa a API da DeepSeek, pode levar "
         "alguns minutos)..."
     )
-    tailor_resume.main()
+    tailor_resume.main(force=args.force)
     dashboard.main()
 
 

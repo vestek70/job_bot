@@ -108,6 +108,22 @@ def load_base_resume(path: str = "base_resume.md") -> str:
         return f.read()
 
 
+def _load_existing_statuses(index_path: str) -> dict:
+    """Lê o status atual de applications/index.csv (se existir), indexado por
+    'pasta', para não resetar edições manuais de status (ex.: "candidatura
+    enviada") toda vez que main.py roda de novo e regera o index inteiro."""
+    statuses = {}
+    if os.path.exists(index_path):
+        try:
+            with open(index_path, encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    if row.get("pasta"):
+                        statuses[row["pasta"]] = row.get("status") or "aguardando revisão"
+        except (OSError, csv.Error):
+            pass
+    return statuses
+
+
 def _maybe_export_pdf(resume_path: str):
     """Gera resume.pdf ao lado do .md, se EXPORT_PDF e as libs estiverem disponíveis.
     Nunca derruba o pipeline: em falha, só avisa e segue (o .md continua válido)."""
@@ -170,7 +186,7 @@ def tailor_one(client, base_resume: str, job: dict) -> str:
     )
 
 
-def main():
+def main(force: bool = False):
     if not config.DEEPSEEK_API_KEY:
         print(
             "ERRO: defina DEEPSEEK_API_KEY para gerar currículos adaptados "
@@ -186,6 +202,8 @@ def main():
     jobs = load_jobs()
 
     os.makedirs(config.OUTPUT_DIR, exist_ok=True)
+    index_path = os.path.join(config.OUTPUT_DIR, "index.csv")
+    existing_statuses = _load_existing_statuses(index_path)
 
     index_rows = []
     for job in jobs:
@@ -194,8 +212,8 @@ def main():
         os.makedirs(folder_path, exist_ok=True)
 
         resume_path = os.path.join(folder_path, "resume.md")
-        if os.path.exists(resume_path):
-            print(f"Já existe, pulando: {resume_path}")
+        if os.path.exists(resume_path) and not force:
+            print(f"Já existe, pulando: {resume_path} (use --force para regerar)")
         else:
             print(f"Adaptando currículo para: {job['title']} @ {job['company']}...")
             try:
@@ -227,11 +245,10 @@ def main():
                 "vaga": job["title"],
                 "pasta": folder_path,
                 "link_candidatura": job["redirect_url"],
-                "status": "aguardando revisão",
+                "status": existing_statuses.get(folder_path, "aguardando revisão"),
             }
         )
 
-    index_path = os.path.join(config.OUTPUT_DIR, "index.csv")
     with open(index_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f, fieldnames=["empresa", "vaga", "pasta", "link_candidatura", "status"]
