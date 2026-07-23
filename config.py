@@ -55,6 +55,12 @@ FILTER_SENIORITY = os.environ.get("FILTER_SENIORITY", "1") not in ("0", "false",
 HOME_CITY = os.environ.get("HOME_CITY", "Florianópolis")
 FILTER_LOCATION = os.environ.get("FILTER_LOCATION", "1") not in ("0", "false", "")
 
+# --- Fontes extras de vagas (além da Adzuna) — ver extra_sources.py ---
+# Ambas são APIs públicas, sem login, sem chave necessária. Desligáveis
+# individualmente se ficarem instáveis ou indesejadas.
+ENABLE_REMOTIVE = os.environ.get("ENABLE_REMOTIVE", "1") not in ("0", "false", "")
+ENABLE_ARBEITNOW = os.environ.get("ENABLE_ARBEITNOW", "1") not in ("0", "false", "")
+
 # --- Rede / retries (tratamento de erros de API) ---
 HTTP_TIMEOUT = 30          # segundos por requisição
 MAX_RETRIES = 3            # tentativas em erros transitórios (429/5xx/timeout)

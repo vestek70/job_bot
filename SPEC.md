@@ -131,12 +131,20 @@ last 1-2 entries before starting work, to know what's already done.
 - [ ] Simple CLI review step: before spending DeepSeek API calls on every job
       found, let the user look at `jobs_found.csv` and pick which ones to tailor
       (`--only-ids 1,2,3` or an interactive picker).
-- [ ] More search sources beyond Adzuna — evaluate which Brazilian job boards
-      (Gupy, Vagas.com, InfoJobs, Catho) expose a public RSS/JSON feed without
-      login. Higher priority now: Adzuna alone + seniority filter + the new
-      location filter (Florianópolis-or-remote-only) combined can yield very
-      few or zero results per run for a narrow keyword — single-source
-      coverage is the main bottleneck, not the filters themselves.
+- [x] More search sources: added Remotive and Arbeitnow (`extra_sources.py`)
+      — both public JSON APIs, no login, no API key. Both are remote-only by
+      nature, which pairs naturally with the location filter. No reliable
+      Portuguese keyword search on either, so both are filtered by a
+      "fullstack" relevance regex on title/tags instead of the literal
+      keyword string. Toggle individually via `ENABLE_REMOTIVE`/
+      `ENABLE_ARBEITNOW` in `.env`. Parsing logic verified offline against
+      fixtures matching each API's documented schema (sandbox network
+      egress blocks remotive.com/arbeitnow.com directly, same as it does
+      Adzuna/DeepSeek — live verification is on the user, locally).
+      Gupy/Vagas.com/InfoJobs/Catho were explicitly evaluated with the user
+      on 2026-07-22 and declined for now (no public no-login API; scraping
+      public pages carries ToS risk) — see PROGRESS_LOG.md. LinkedIn/login
+      automation remains out of scope per the project's own hard constraint.
 - [~] Unit tests (`pytest`) for pure functions: started in `test_filters.py`
       (`slugify`, `is_too_senior`, `filter_out_senior`, `is_local_or_remote`,
       `filter_out_non_local`). Still missing: CSV parsing, prompt building.

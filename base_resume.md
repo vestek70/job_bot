@@ -1,4 +1,4 @@
-# Konstantin
+# Konstantin Borisov
 Desenvolvedor Fullstack (Junior/Pleno)
 
 Email: vestek70@gmail.com

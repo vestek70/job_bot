@@ -19,6 +19,7 @@ import time
 import requests
 
 import config
+from extra_sources import fetch_all_extra_sources
 from filters import filter_out_non_local, filter_out_senior
 
 
@@ -146,6 +147,16 @@ def search_jobs(keywords: str = None, max_pages: int = None,
         else:
             print(f"ERRO: {e}", file=sys.stderr)
             sys.exit(1)
+
+    extra_jobs = fetch_all_extra_sources()
+    if extra_jobs:
+        print(f"+ {len(extra_jobs)} vaga(s) de fontes extras (Remotive/Arbeitnow, "
+              f"só remotas).")
+    for job in extra_jobs:
+        if job.get("id") in seen_ids:
+            continue
+        seen_ids.add(job.get("id"))
+        all_jobs.append(job)
 
     if filter_seniority:
         kept, dropped = filter_out_senior(all_jobs)
