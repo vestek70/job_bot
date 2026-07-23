@@ -86,7 +86,8 @@ JOOBLE_QUERIES = [
     kw.strip() for kw in os.environ.get(
         "JOOBLE_QUERIES",
         "developer,fullstack developer,software engineer,"
-        "react developer,python developer,desenvolvedor",
+        "react developer,python developer,backend developer,"
+        "frontend developer,java developer,web developer,desenvolvedor",
     ).split(",") if kw.strip()
 ]
 
@@ -109,7 +110,11 @@ _DEFAULT_RELEVANCE = (
     r"software engineer,software developer,web developer,"
     r"engenheiro de software,engenharia de software,software,"
     r"analista de sistemas,analista de desenvolvimento,analista de ti,"
-    r"\bdevops\b,\bsre\b"
+    r"\bdevops\b,\bsre\b,"
+    # roles adjacentes (habilitadas ao "afrouxar filtros" — 2026-07-23):
+    r"\bqa\b,quality assurance,\btester\b,analista de test,"
+    r"analista de dados,engenheiro de dados,data engineer,"
+    r"cientista de dados,data scientist,\bdados\b"
 )
 RELEVANCE_KEYWORDS = [
     kw.strip() for kw in
@@ -122,7 +127,8 @@ RELEVANCE_KEYWORDS = [
 ADZUNA_BROAD_OR = os.environ.get(
     "ADZUNA_BROAD_OR",
     "desenvolvedor programador fullstack backend frontend react node python "
-    "php javascript typescript",
+    "php javascript typescript java angular vue kotlin software sistemas "
+    "desenvolvimento programacao dados qa",
 )
 
 # --- Rede / retries (tratamento de erros de API) ---

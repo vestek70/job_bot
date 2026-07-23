@@ -106,6 +106,13 @@ def test_is_dev_relevant_keeps_real_dev_jobs():
         assert is_dev_relevant(t), t
 
 
+def test_is_dev_relevant_keeps_adjacent_roles():
+    # roles adjacentes habilitadas ao afrouxar filtros (QA, dados)
+    for t in ["QA Analyst", "Quality Assurance Engineer", "Analista de Dados",
+              "Data Engineer", "Cientista de Dados", "Tester Pleno"]:
+        assert is_dev_relevant(t), t
+
+
 def test_is_dev_relevant_drops_non_dev():
     # inclui a regressão do bug ".net" que casava "internet"
     for t in ["Técnico em Telecomunicações Internet", "Estágio em Nutrição 30h",
