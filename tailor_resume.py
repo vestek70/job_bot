@@ -49,12 +49,27 @@ the output instead of guessing.
 match the job.
 - You may add a short summary (2-3 lines) connecting the candidate's profile to the \
 job, but using only facts from the base resume.
-- Keep the same field of work (fullstack development) — do not adapt it into a \
-different profession.
+- Stay within software development, but ADAPT THE ANGLE to the job: if it's a \
+back-end role, lead with Postgres/APIs/auth/security; if front-end, lead with \
+React/JavaScript/PWA; if fullstack, balance both. Adjust the headline/title line to \
+match the role's wording (e.g. "Desenvolvedor Back-end", "Desenvolvedor Front-end", \
+"Desenvolvedor Fullstack") — but never claim a different profession or seniority the \
+base resume doesn't support.
 - If the job asks for a specific technology that is not in the base resume, do NOT \
 claim the candidate knows it — at most mention willingness to learn, if it makes sense.
 - Write the output in Brazilian Portuguese, in Markdown, using the same section \
 structure as the base resume, but condensed per the rules above.
+
+TONE — write like a real person, modern and human (this matters):
+- Natural, confident, concrete. Short and direct sentences. Sound like a competent \
+developer talking about real work they did — not like a template or an AI.
+- Prefer concrete evidence over adjectives: show what was built/fixed and the result, \
+instead of self-labels ("proativo", "dedicado"). Numbers and specifics when the base \
+resume has them (e.g. "22 testes unitários", "Lighthouse 100/100").
+- Do NOT pad with filler, corporate clichés, or generic mission statements. No \
+buzzword soup. Every line should carry real information.
+- It's fine and good to acknowledge he's early-career and learns fast — honesty reads \
+as human and credible. Don't oversell into "sênior" territory.
 
 ATS-FRIENDLY FORMATTING (so parsers like Workday, Taleo, Greenhouse read it correctly):
 - Plain Markdown only: no tables, no icons/emoji, no text boxes. Standard section \
@@ -186,18 +201,71 @@ def tailor_one(client, base_resume: str, job: dict) -> str:
     )
 
 
-def main(force: bool = False):
-    if not config.DEEPSEEK_API_KEY:
-        print(
-            "ERRO: defina DEEPSEEK_API_KEY para gerar currículos adaptados "
-            "(chave: https://platform.deepseek.com/api_keys).",
-            file=sys.stderr,
-        )
-        sys.exit(1)
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 
-    client = anthropic.Anthropic(
+
+def extract_email(*texts) -> str:
+    """Retorna o primeiro e-mail de contato encontrado nos textos (ex.: na
+    descrição da vaga), ou "" se não houver. Usado para saber se dá para
+    enviar candidatura por e-mail (vs. só link para a plataforma)."""
+    for text in texts:
+        m = _EMAIL_RE.search(text or "")
+        if m:
+            return m.group(0)
+    return ""
+
+
+def make_client():
+    """Cria o cliente da API (DeepSeek via SDK Anthropic). Levanta RuntimeError
+    se a chave não estiver definida — para o app tratar sem sys.exit()."""
+    if not config.DEEPSEEK_API_KEY:
+        raise RuntimeError(
+            "DEEPSEEK_API_KEY não definida (.env) — necessária para gerar "
+            "currículos. Chave: https://platform.deepseek.com/api_keys"
+        )
+    return anthropic.Anthropic(
         api_key=config.DEEPSEEK_API_KEY, base_url=config.DEEPSEEK_BASE_URL
     )
+
+
+def folder_for(job: dict) -> str:
+    """Caminho da pasta desta vaga em applications/ (determinístico)."""
+    name = f"{slugify(job['company'])}_{slugify(job['title'])}_{job['id']}"
+    return os.path.join(config.OUTPUT_DIR, name)
+
+
+def write_job_info(folder_path: str, job: dict):
+    with open(os.path.join(folder_path, "job_info.txt"), "w", encoding="utf-8") as f:
+        f.write(f"Título: {job.get('title', '')}\n")
+        f.write(f"Empresa: {job.get('company', '')}\n")
+        f.write(f"Local: {job.get('location', '')}\n")
+        f.write(f"Link para candidatura: {job.get('redirect_url', '')}\n")
+        email = extract_email(job.get("description", ""), job.get("redirect_url", ""))
+        if email:
+            f.write(f"Email de contato: {email}\n")
+
+
+def tailor_and_save(client, base_resume: str, job: dict) -> str:
+    """Gera o currículo adaptado para UMA vaga, salva resume.md + resume.pdf +
+    job_info.txt na pasta da vaga e retorna o caminho da pasta. Levanta exceção
+    em caso de falha. Usado pelo app (geração sob demanda, após seleção)."""
+    folder_path = folder_for(job)
+    os.makedirs(folder_path, exist_ok=True)
+    tailored = tailor_one(client, base_resume, job)
+    resume_path = os.path.join(folder_path, "resume.md")
+    with open(resume_path, "w", encoding="utf-8") as f:
+        f.write(tailored)
+    _maybe_export_pdf(resume_path)
+    write_job_info(folder_path, job)
+    return folder_path
+
+
+def main(force: bool = False):
+    try:
+        client = make_client()
+    except RuntimeError as e:
+        print(f"ERRO: {e}", file=sys.stderr)
+        sys.exit(1)
     base_resume = load_base_resume()
     jobs = load_jobs()
 
@@ -207,8 +275,7 @@ def main(force: bool = False):
 
     index_rows = []
     for job in jobs:
-        folder_name = f"{slugify(job['company'])}_{slugify(job['title'])}_{job['id']}"
-        folder_path = os.path.join(config.OUTPUT_DIR, folder_name)
+        folder_path = folder_for(job)
         os.makedirs(folder_path, exist_ok=True)
 
         resume_path = os.path.join(folder_path, "resume.md")
@@ -233,11 +300,7 @@ def main(force: bool = False):
                 f.write(tailored)
             _maybe_export_pdf(resume_path)
 
-        with open(os.path.join(folder_path, "job_info.txt"), "w", encoding="utf-8") as f:
-            f.write(f"Título: {job['title']}\n")
-            f.write(f"Empresa: {job['company']}\n")
-            f.write(f"Local: {job['location']}\n")
-            f.write(f"Link para candidatura: {job['redirect_url']}\n")
+        write_job_info(folder_path, job)
 
         index_rows.append(
             {

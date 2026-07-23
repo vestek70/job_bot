@@ -26,6 +26,78 @@
 
 ---
 
+## 2026-07-23 — Крупная переделка: панель Flask (выбор→резюме→отправка) + резюме шире/человечнее
+
+### Контекст
+- Пользователь дал 3 требования: (1) резюме генерировать ТОЛЬКО после выбора в
+  дашборде (сейчас делались все подряд); (2) автоматическая рассылка резюме;
+  (3) резюме современнее/человечнее, под рынок. Через уточнение выбрал:
+  локальное приложение (Flask) и позиционирование «dev в целом».
+
+### Что сделано
+1. **Рефакторинг `tailor_resume.py`** для генерации по одной вакансии:
+   `make_client()` (бросает RuntimeError вместо sys.exit), `folder_for(job)`,
+   `write_job_info()` (пишет и «Email de contato», если найден в описании),
+   `tailor_and_save(client, base, job)` (одна вакансия → resume.md+pdf+
+   job_info), `extract_email(*texts)` (regex контактного email). `main()`
+   переиспользует хелперы.
+2. **`send_application.py`**: `send_email` теперь бросает `SendError` (не
+   sys.exit) — чтобы приложение обрабатывало. Добавлены `resume_attachment`
+   (предпочитает PDF), `subject_and_body` (подпись «Konstantin Borisov»),
+   `read_title`. SMTP-ошибки оборачиваются в SendError. CLI обновлён.
+3. **`app.py` — новое Flask-приложение** (локально, 127.0.0.1:5000):
+   - `/` — таблица всех вакансий из jobs_found.csv, статус (есть резюме?),
+     бейдж email/só-link, чекбокс только у вакансий с email.
+   - `/tailor` (POST) — генерит резюме под одну вакансию по кнопке.
+   - `/send` (POST) — рассылает выбранным (только с email + готовым резюме),
+     каждая с подтверждением в UI (JS confirm). Возвращает пер-вакансию статус.
+   - `/pdf/<folder>` — отдаёт PDF.
+   - Площадочные вакансии (без email) — только кнопка «Abrir vaga», ручной
+     отклик. Никакого логина/автоматизации площадок (принцип проекта).
+4. **`main.py` — только поиск**: сохраняет jobs_found.csv и печатает инструкцию
+   запустить `python app.py`. Массовая генерация — под флагом `--tailor-all`
+   (совместимость). Резюме больше не делаются на все подряд.
+5. **Резюме шире/человечнее (пункт 3)**: `base_resume.md` — заголовок
+   «Desenvolvedor de Software — Fullstack / Backend / Frontend», резюме
+   переписано живым, конкретным языком (без буллшита), добавлены GitHub и
+   «aberto a remoto». `TAILOR_PROMPT`: адаптирует угол/заголовок под вакансию
+   (back/front/fullstack), блок TONE (по-человечески, конкретика вместо
+   прилагательных, без клише, честно про early-career). Анти-фабрикация
+   сохранена.
+6. `requirements.txt`: +flask. `test_app.py`: 6 тестов (extract_email,
+   folder_for, resume_attachment, subject_and_body, SendError без кредов,
+   Flask-роуты через test_client). README переписан под новый процесс.
+
+### Файлы изменены
+- `tailor_resume.py`, `send_application.py`, `main.py`, `base_resume.md` —
+  рефакторинг/переработка.
+- `app.py`, `test_app.py` — новые файлы.
+- `requirements.txt`, `README.md`, `SPEC.md` — обновлены.
+
+### Проверка
+- `py_compile` на всех `.py` — ок.
+- `test_filters.py` 23/23, `test_extra_sources.py` 12/12, `test_app.py` 6/6.
+- Flask поставлен в песочнице, роуты проверены через `app.test_client()`:
+  GET / → 200, POST /send пустой → [], /send с несуществующим id → ok=False
+  (не 500), /tailor с несуществующим id → 404. `job_view` на реальном
+  jobs_found.csv: нашёл 1 вакансию с email-контактом (Azure DevOps @ Alight).
+- **НЕ проверено вживую**: реальная генерация резюме через `/tailor` (нужен
+  DeepSeek, сеть в песочнице заблокирована) и реальная отправка `/send` (нужен
+  GMAIL_APP_PASSWORD + сеть). Логика вокруг протестирована на моках/юнитах;
+  реальный прогон — на пользователе.
+
+### Дальше
+- Пользователю: `pip install flask --break-system-packages` (или
+  `pip install -r requirements.txt ...`), затем новый процесс:
+  `python main.py "desenvolvedor fullstack"` → `python app.py` → браузер
+  127.0.0.1:5000 → выбрать вакансии → «Gerar currículo» → (для email-вакансий)
+  «Enviar selecionados». Для отправки заполнить `GMAIL_APP_PASSWORD` в `.env`.
+- Проверить качество нового резюме на 2-3 вакансиях (back/front/fullstack) —
+  адаптируется ли угол, звучит ли человечно.
+- `debug_jooble.py` можно удалить (временный).
+
+---
+
 ## 2026-07-23 — Больше вакансий: ослаблены фильтры + расширены ключевые слова
 
 ### Контекст

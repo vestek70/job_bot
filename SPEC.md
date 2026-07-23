@@ -138,9 +138,24 @@ last 1-2 entries before starting work, to know what's already done.
 - [ ] Track "already processed" jobs across runs (currently `tailor_resume.py`
       skips based on existing folder — fine, but `search_jobs.py` overwrites
       `jobs_found.csv` fully each run — should accumulate/dedupe across runs).
-- [ ] Simple CLI review step: before spending DeepSeek API calls on every job
-      found, let the user look at `jobs_found.csv` and pick which ones to tailor
-      (`--only-ids 1,2,3` or an interactive picker).
+- [x] Select-then-tailor: `main.py` no longer auto-tailors every job (search
+      only → `jobs_found.csv`). A local Flask panel (`app.py`, 127.0.0.1:5000)
+      lists all found jobs and tailors ONE on demand when the user clicks
+      "Gerar currículo". Old bulk behavior kept behind `main.py --tailor-all`.
+      `tailor_resume` refactored: `make_client()`, `folder_for(job)`,
+      `write_job_info()`, `tailor_and_save(client, base, job)`.
+- [x] Auto-send from the panel: jobs whose description contains a contact
+      e-mail (`tailor_resume.extract_email`) get a checkbox; select + "Enviar
+      selecionados" e-mails the tailored PDF via `send_application.send_email`
+      (now raises `SendError` instead of `sys.exit`), after a JS confirm.
+      Platform jobs (no e-mail) stay manual via "Abrir vaga" — no login/form
+      automation, per the hard constraint. Needs `GMAIL_APP_PASSWORD`.
+- [x] Broader, more human resume: `base_resume.md` repositioned from
+      fullstack-only to "Desenvolvedor de Software — Fullstack/Backend/
+      Frontend" with a natural, concrete summary; `TAILOR_PROMPT` now adapts
+      the angle/headline to the job (back/front/fullstack) and has explicit
+      human/modern tone rules (concrete evidence over adjectives, no filler/
+      buzzwords, honest early-career framing). Still anti-fabrication.
 - [x] More search sources: added Remotive, Arbeitnow, RemoteOK, Jobicy, and
       The Muse (`extra_sources.py`) — all public JSON APIs, no login, no API
       key. Most are remote-only by nature (The Muse also returns Brazil

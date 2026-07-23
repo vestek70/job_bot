@@ -1,19 +1,21 @@
 # Konstantin Borisov
-Desenvolvedor Fullstack (Junior/Pleno)
+Desenvolvedor de Software — Fullstack / Backend / Frontend
 
 Email: vestek70@gmail.com
-Localização: Florianópolis, SC, Brasil
+Localização: Florianópolis, SC, Brasil (aberto a remoto)
+GitHub: github.com/vestek70
 
 ## Resumo
-Desenvolvedor fullstack em início de carreira, autor de um SaaS real em produção
-(React/Vite + Supabase + Stripe) com assinaturas pagantes ativas. Trabalho com fluxo
-AI-augmented — ferramentas agênticas de IA (Claude Code, Kilo Code com orquestração
-multi-agente) para arquitetar, implementar, revisar e depurar código — mantendo eu
-mesmo as decisões técnicas, a definição de arquitetura e a validação de cada mudança
-antes do deploy. Já passei por ciclos reais de correção de bugs de billing em produção,
-hardening de segurança (RLS, proteção contra IDOR e price tampering) e testes
-automatizados. Foco em entregar produtos completos: do front-end ao banco de dados,
-pagamentos e segurança.
+Desenvolvedor de software que aprende construindo produto de verdade. Coloquei um
+SaaS no ar do zero à produção (React + Supabase/PostgreSQL + Stripe), com assinantes
+pagantes reais, e cuido dele ponta a ponta: front-end, API, banco de dados,
+pagamentos e segurança. Trabalho num fluxo apoiado por IA (Claude Code, Kilo Code)
+para implementar e depurar mais rápido, mas as decisões de arquitetura, a revisão e a
+validação de cada mudança antes do deploy são minhas. Já lidei com o que dá trabalho
+de verdade: bugs de cobrança em produção, correção de falhas de segurança (RLS, IDOR,
+price tampering) e testes automatizados. Confortável tanto no back-end (Postgres,
+APIs, autenticação) quanto no front-end (React, JavaScript, PWA), e me adapto rápido a
+novas linguagens e ferramentas.
 
 ## Projetos
 
