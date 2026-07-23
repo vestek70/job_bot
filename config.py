@@ -78,17 +78,26 @@ ENABLE_THEMUSE = os.environ.get("ENABLE_THEMUSE", "1") not in ("0", "false", "")
 JOOBLE_API_KEY = os.environ.get("JOOBLE_API_KEY")
 ENABLE_JOOBLE = os.environ.get("ENABLE_JOOBLE", "1") not in ("0", "false", "")
 
-# Relevância: as fontes remotas (Remotive/Arbeitnow/RemoteOK/Jobicy) não têm
-# busca por palavra-chave confiável, então filtramos as vagas por relevância
-# no título/tags. Antes era só "fullstack" — restritivo demais para quem também
-# se candidata a backend/frontend/react/python/web dev. Lista ampla (regex,
-# sem acento, minúsculas) — casa qualquer um dos termos.
-# Sobrescrever via env RELEVANCE_KEYWORDS="a,b,c" se quiser afinar.
+# Relevância: usada para descartar vagas que NÃO são de desenvolvimento (a
+# busca ampla da Adzuna e as fontes remotas trazem muita coisa fora de dev —
+# nutrição, telecom, recepção, etc.). Cada item é um regex (minúsculo, sem
+# acento — o texto é normalizado antes de casar).
+#
+# IMPORTANTE sobre a sintaxe:
+# - Pontos são literais SÓ se escapados: "\.net" casa ".net" mas NÃO "internet"
+#   (o bug anterior era ".net" sem escape, que casava "inter[net]").
+# - "\b" = limite de palavra, para "react" não casar "reaction", etc.
+# Sobrescrever via env RELEVANCE_KEYWORDS="a,b,c" para afinar ao seu stack.
 _DEFAULT_RELEVANCE = (
-    r"full[\s-]?stack,back[\s-]?end,front[\s-]?end,react,vue,angular,node,"
-    r"typescript,javascript,python,django,flask,php,laravel,ruby,rails,"
-    r"\.net,desenvolvedor,programador,software engineer,software developer,"
-    r"web developer,engenheiro de software,web dev"
+    r"full[\s-]?stack,back[\s-]?end,front[\s-]?end,"
+    r"\bdeveloper\b,\bdesenvolvedor,\bprogramador,"
+    r"\breact\b,\bnode\b,\bvue\b,\bangular\b,\btypescript\b,\bjavascript\b,"
+    r"\bpython\b,\bdjango\b,\bflask\b,\bphp\b,\blaravel\b,\bruby\b,\brails\b,"
+    r"\bjava\b,\bgolang\b,\bkotlin\b,\bflutter\b,\.net\b,dotnet,c#,"
+    r"software engineer,software developer,web developer,"
+    r"engenheiro de software,engenharia de software,software,"
+    r"analista de sistemas,analista de desenvolvimento,analista de ti,"
+    r"\bdevops\b,\bsre\b"
 )
 RELEVANCE_KEYWORDS = [
     kw.strip() for kw in

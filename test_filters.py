@@ -3,8 +3,10 @@ Testes das heurísticas puras. Rodar: python -m pytest test_filters.py
 (ou simplesmente: python test_filters.py — tem um runner mínimo embutido).
 """
 from filters import (
+    filter_out_irrelevant,
     filter_out_non_local,
     filter_out_senior,
+    is_dev_relevant,
     is_local_or_remote,
     is_too_senior,
 )
@@ -93,6 +95,37 @@ def test_filter_out_non_local_splits_correctly():
     kept, dropped = filter_out_non_local(jobs)
     assert {j["title"] for j in kept} == {"Dev A", "Dev B (Remoto)"}
     assert len(dropped) == 1 and dropped[0]["title"] == "Dev C"
+
+
+def test_is_dev_relevant_keeps_real_dev_jobs():
+    for t in ["Desenvolvedor Fullstack", "Backend Developer Python",
+              "Desenvolvedor(a) Java/React Remoto", "Software Engineer",
+              "Engenheiro de Software", "Analista de Sistemas",
+              "Programadora PHP", ".NET Developer", "Desenvolvedor Android",
+              "Ruby on Rails Pleno"]:
+        assert is_dev_relevant(t), t
+
+
+def test_is_dev_relevant_drops_non_dev():
+    # inclui a regressão do bug ".net" que casava "internet"
+    for t in ["Técnico em Telecomunicações Internet", "Estágio em Nutrição 30h",
+              "Técnico de Campo Chapecó", "Recepcionista", "Marketing Associate",
+              "Analista de Comércio Exterior", "Mortgage Loan Processor",
+              "Human Resources Generalist", "Office Admin",
+              "Analista de Suporte em Infraestrutura de TI"]:
+        assert not is_dev_relevant(t), t
+
+
+def test_filter_out_irrelevant_splits():
+    jobs = [
+        {"title": "Desenvolvedor Fullstack"},
+        {"title": "Estágio em Nutrição"},
+        {"title": "Backend Developer"},
+        {"title": "Técnico de Telecomunicações Internet"},
+    ]
+    kept, dropped = filter_out_irrelevant(jobs)
+    assert {j["title"] for j in kept} == {"Desenvolvedor Fullstack", "Backend Developer"}
+    assert len(dropped) == 2
 
 
 def test_slugify():

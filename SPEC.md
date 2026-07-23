@@ -155,10 +155,18 @@ last 1-2 entries before starting work, to know what's already done.
       `where=HOME_CITY` pass — via a reusable `_collect_adzuna_pass` helper.
       The broad `what_or` pass is the biggest volume lever within Brazil.
 - [x] Broadened remote-source relevance from fullstack-only to a
-      config-driven dev keyword set (`config.RELEVANCE_KEYWORDS`,
-      `extra_sources._is_dev_relevant`, accent-insensitive). This alone
-      multiplies matches from the remote sources (backend/frontend/react/
-      python postings now flow through instead of being dropped).
+      config-driven dev keyword set (`config.RELEVANCE_KEYWORDS`), then made
+      it a FINAL GUARD applied to ALL sources (`filters.is_dev_relevant` /
+      `filters.filter_out_irrelevant`, called in `search_jobs.py` before the
+      seniority/location filters). Reason: after broadening, the wide Adzuna
+      `what_or` pass and the English remote boards leaked lots of non-dev
+      jobs (nutrition, telecom, reception, support, HR) — on one live run 52
+      found → 35 non-dev dropped → 17 clean dev jobs. Also fixed a regex bug:
+      the keyword ".net" was unescaped, so its "." matched any char and
+      caught "internet" (telecom jobs); now escaped/word-bounded
+      (`\.net\b`, `\breact\b`, etc.). `RELEVANCE_KEYWORDS` is env-tunable.
+      `_is_dev_relevant`/`_normalize` moved from `extra_sources.py` to
+      `filters.py` (single source of truth; extra_sources imports it).
 - [x] Added Jooble (`extra_sources.fetch_jooble`) — a legitimate job
       aggregator with a public POST API (free key `JOOBLE_API_KEY`), NOT
       scraping. Best Brazil/Florianópolis coverage of all sources; has real

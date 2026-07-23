@@ -26,6 +26,79 @@
 
 ---
 
+## 2026-07-23 — Первый прогон с Jooble: 52 вакансии, но много мусора → фикс релевантности
+
+### Контекст
+- Пользователь получил ключ Jooble, запустил. Результат прогона: Adzuna
+  широкий проход +42, локальный по Florianópolis +40, extra-источники +53
+  (Jooble заработал), итого **52 вакансии после фильтров** (было 1!). Рост
+  охвата — успех. НО при проверке `jobs_found.csv` видно, что в выдачу
+  просочилось много НЕ-dev вакансий: нутрициология, техники телекома
+  (Vero Internet), ресепшн, HR, маркетинг, техподдержка, комодитиз и т.п.
+- Jobicy отдал 403 (редирект на блог-статью — эндпоинт блокирует/сменился).
+
+### Диагноз (два бага)
+1. **`.net` в `RELEVANCE_KEYWORDS` был НЕэкранированным регэкспом** — точка =
+   «любой символ», поэтому `.net` ловил слово "inter**net**". Отсюда все
+   телеком-вакансии Vero Internet. Плюс у коротких слов не было границ
+   (`react` мог бы ловить "reaction" и т.п.).
+2. **Фильтр релевантности применялся только внутри extra_sources** (к
+   удалённым источникам), а вакансии Adzuna (особенно локальный проход по
+   Florianópolis) шли мимо него — поэтому любые локальные вакансии
+   (нутрициология, PMO, контроллинг) проходили дальше.
+
+### Что сделано
+- Переписан `RELEVANCE_KEYWORDS` в `config.py`: точки экранированы
+  (`\.net\b` — ловит ".NET", не "internet"), у слов границы (`\breact\b`),
+  добавлены java/kotlin/golang/flutter/dotnet/c#/"analista de sistemas"/
+  "analista de ti"/devops/sre и др.
+- `is_dev_relevant` и `_normalize` **перенесены из `extra_sources.py` в
+  `filters.py`** (единый источник правды); extra_sources импортирует оттуда.
+- Добавлен `filters.filter_out_irrelevant(jobs)` — финальный guard по
+  НАЗВАНИЮ, применяется в `search_jobs.py` ко ВСЕМ вакансиям всех источников
+  до фильтров сеньорности/локации. Печатает, сколько отсеяно.
+- `extra_sources.fetch_jobicy`: добавлен `allow_redirects=False`, чтобы
+  редирект на блог падал чисто (а не тянул мусорный 403 по чужому URL).
+- Тесты: `test_filters.py` +3 (dev проходят / не-dev отсеиваются, включая
+  регрессию "internet"; `filter_out_irrelevant` делит список),
+  `test_extra_sources.py` обновлён (функция теперь из filters; fake_get
+  принимает `allow_redirects`; регрессия internet).
+- README/SPEC обновлены.
+
+### Файлы изменены
+- `config.py` — переписан `RELEVANCE_KEYWORDS` (экранирование, границы, +термины).
+- `filters.py` — `is_dev_relevant`, `_normalize`, `filter_out_irrelevant`.
+- `extra_sources.py` — импорт из filters, `allow_redirects=False` в Jobicy.
+- `search_jobs.py` — применение `filter_out_irrelevant` ко всему пулу.
+- `test_filters.py`, `test_extra_sources.py` — тесты.
+- `README.md`, `SPEC.md` — документация.
+
+### Проверка
+- `py_compile` на всех `.py` — ок.
+- `python test_filters.py` — 16/16, `python test_extra_sources.py` — 12/12.
+- **Прогон фильтра на реальном `jobs_found.csv` пользователя (52 вакансии)**:
+  17 dev оставлено, 35 не-dev отсеяно. Проверено вручную — оставшиеся 17 все
+  реальные dev-роли (fullstack Java/React, backend Python, Android, Ruby,
+  PHP/Laravel, Engenheiro de Software), отсеянные — нутрициология, телеком,
+  ресепшн, HR, PMO, техподдержка. Регрессия "internet" закрыта.
+- Jobicy `allow_redirects=False` вживую не проверялся (сеть в песочнице).
+
+### Дальше
+- Пользователю: перезапустить `python main.py "desenvolvedor fullstack"`.
+  Теперь после источников появится строка "Filtradas N vaga(s) fora de
+  desenvolvimento". В `applications/` попадут только dev-вакансии.
+- **Старый мусор в `applications/`**: прошлый прогон уже нагенерил резюме для
+  не-dev вакансий (нутрициология и т.п.). Их папки остались. Стоит удалить
+  папку `applications/` целиком и перегенерировать
+  (`Remove-Item -Recurse -Force applications; python main.py "..."`), чтобы
+  почистить. Статусы в index.csv при этом сбросятся (их пока нет).
+- Если фильтр режет что-то нужное (напр., "Data Engineer", "Analista de
+  Dados") — добавить термины в `RELEVANCE_KEYWORDS` в `.env`.
+- Jobicy всё ещё может 403-ить (сторонняя защита) — если так, просто отключить
+  `ENABLE_JOBICY=0`, остальные 5 источников работают.
+
+---
+
 ## 2026-07-22 — Apify/LinkedIn отклонён по ToS; вместо него легальный Jooble
 
 ### Контекст

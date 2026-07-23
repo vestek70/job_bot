@@ -11,12 +11,46 @@ Funções puras, sem I/O — testáveis isoladamente (ver test_filters.py).
 import re
 import unicodedata
 
+import config
+
 
 def _normalize(text: str) -> str:
     """minúsculas + remove acentos, para casar 'sênior' == 'senior'."""
     text = (text or "").lower()
     text = unicodedata.normalize("NFKD", text)
     return "".join(c for c in text if not unicodedata.combining(c))
+
+
+# --- Relevância de desenvolvimento --------------------------------------------
+# Descarta vagas que NÃO são de dev (nutrição, telecom, recepção, suporte, etc.).
+# A busca ampla da Adzuna (what_or) e as fontes remotas trazem muito ruído; este
+# é o guarda final aplicado a TODAS as vagas de TODAS as fontes.
+_RELEVANCE_RE = re.compile(
+    "|".join(config.RELEVANCE_KEYWORDS) if config.RELEVANCE_KEYWORDS else r"$^"
+)
+
+
+def is_dev_relevant(title: str, tags: list = None) -> bool:
+    """True se o título (ou alguma tag) casa com algum termo de dev
+    (config.RELEVANCE_KEYWORDS, já com escapes/limites de palavra corretos)."""
+    if _RELEVANCE_RE.search(_normalize(title)):
+        return True
+    for tag in (tags or []):
+        if _RELEVANCE_RE.search(_normalize(tag)):
+            return True
+    return False
+
+
+def filter_out_irrelevant(jobs: list) -> tuple:
+    """Separa (dev, não_dev) por relevância no TÍTULO. Guarda final contra vagas
+    fora de dev que a busca ampla/fontes remotas deixaram passar."""
+    kept, dropped = [], []
+    for job in jobs:
+        if is_dev_relevant(job.get("title", "")):
+            kept.append(job)
+        else:
+            dropped.append(job)
+    return kept, dropped
 
 
 # Termos que indicam um cargo ACIMA de pleno (casados no TÍTULO da vaga).

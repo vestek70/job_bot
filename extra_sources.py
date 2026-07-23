@@ -35,37 +35,11 @@ independentemente da palavra-chave passada em `python main.py "..."`.
 import html as html_module
 import re
 import sys
-import unicodedata
 
 import requests
 
 import config
-
-
-def _normalize(text: str) -> str:
-    """minúsculas + remove acentos, para casar 'programação' etc."""
-    text = (text or "").lower()
-    text = unicodedata.normalize("NFKD", text)
-    return "".join(c for c in text if not unicodedata.combining(c))
-
-
-# Regex de relevância montada a partir de config.RELEVANCE_KEYWORDS (lista
-# ampla de termos de dev, não só "fullstack"). Compilada uma vez no import.
-_RELEVANCE_RE = re.compile(
-    "|".join(config.RELEVANCE_KEYWORDS) if config.RELEVANCE_KEYWORDS else r"$^"
-)
-
-
-def _is_dev_relevant(title: str, tags: list = None) -> bool:
-    """True se o título ou alguma tag casa com a lista de termos de dev
-    (config.RELEVANCE_KEYWORDS). Amplo de propósito — o filtro de senioridade
-    (filters.py) cuida de descartar níveis acima de pleno depois."""
-    if _RELEVANCE_RE.search(_normalize(title)):
-        return True
-    for tag in (tags or []):
-        if _RELEVANCE_RE.search(_normalize(tag)):
-            return True
-    return False
+from filters import is_dev_relevant as _is_dev_relevant
 
 
 def _strip_html(text: str) -> str:
@@ -233,6 +207,7 @@ def fetch_jobicy() -> list:
             params={"count": 50, "industry": "dev"},
             headers={"User-Agent": "job-bot/1.0 (uso pessoal, busca de vagas)"},
             timeout=config.HTTP_TIMEOUT,
+            allow_redirects=False,  # o endpoint às vezes redireciona p/ blog e dá 403
         )
         resp.raise_for_status()
         data = resp.json()

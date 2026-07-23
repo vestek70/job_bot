@@ -24,7 +24,11 @@ import requests
 
 import config
 from extra_sources import fetch_all_extra_sources
-from filters import filter_out_non_local, filter_out_senior
+from filters import (
+    filter_out_irrelevant,
+    filter_out_non_local,
+    filter_out_senior,
+)
 
 
 class AdzunaError(Exception):
@@ -205,6 +209,15 @@ def search_jobs(keywords: str = None, max_pages: int = None,
             continue
         seen_ids.add(job.get("id"))
         all_jobs.append(job)
+
+    # Guarda de relevância (aplicado a TODAS as fontes): descarta vagas fora de
+    # dev que a busca ampla da Adzuna / fontes remotas deixaram passar
+    # (nutrição, telecom, recepção, suporte, etc.).
+    kept, dropped = filter_out_irrelevant(all_jobs)
+    if dropped:
+        print(f"Filtradas {len(dropped)} vaga(s) fora de desenvolvimento "
+              f"(ajuste RELEVANCE_KEYWORDS no .env se cortar demais/de menos).")
+    all_jobs = kept
 
     if filter_seniority:
         kept, dropped = filter_out_senior(all_jobs)

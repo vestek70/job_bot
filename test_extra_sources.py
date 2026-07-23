@@ -205,7 +205,7 @@ _JOOBLE_REMOTE = {
 
 
 def _install_fake_get(monkeypatch_state):
-    def fake_get(url, params=None, timeout=None, headers=None):
+    def fake_get(url, params=None, timeout=None, headers=None, allow_redirects=None):
         if "remotive" in url:
             return _FakeResp(_REMOTIVE_PAYLOAD)
         if "arbeitnow" in url:
@@ -237,17 +237,19 @@ def _install_fake_get(monkeypatch_state):
 
 
 def test_is_dev_relevant_broad():
-    # Amplo: casa dev em geral, não só fullstack
+    # A função vem de filters (importada em extra_sources); casa dev em geral
     assert es._is_dev_relevant("Full Stack Developer")
-    assert es._is_dev_relevant("Backend Engineer")
+    assert es._is_dev_relevant("Backend Developer")
     assert es._is_dev_relevant("Frontend Developer")
     assert es._is_dev_relevant("React Developer")
     assert es._is_dev_relevant("Desenvolvedor Python")
     assert es._is_dev_relevant("Programador PHP")
-    assert es._is_dev_relevant("QA Analyst", tags=["node", "javascript"])
+    assert es._is_dev_relevant("Engenheiro", tags=["node", "javascript"])
     # Não casa fora de dev
     assert not es._is_dev_relevant("Sales Manager")
     assert not es._is_dev_relevant("Recruiter", tags=["hr"])
+    # Regressão do bug ".net" -> "internet"
+    assert not es._is_dev_relevant("Técnico em Telecomunicações Internet")
 
 
 def test_strip_html():
@@ -347,7 +349,7 @@ def test_fetch_remotive_disabled_returns_empty(monkeypatch=None):
 
 def test_fetch_handles_network_error_gracefully():
     import config
-    def broken_get(url, params=None, timeout=None, headers=None):
+    def broken_get(url, params=None, timeout=None, headers=None, allow_redirects=None):
         raise es.requests.exceptions.ConnectionError("no network")
     def broken_post(url, json=None, timeout=None, headers=None):
         raise es.requests.exceptions.ConnectionError("no network")
