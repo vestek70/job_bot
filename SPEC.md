@@ -22,7 +22,7 @@ job_bot/
 ├── base_resume.md       # Full fact base about the candidate (NOT the final resume!)
 ├── config.py             # All settings/keys, loaded from .env / env vars
 ├── search_jobs.py         # Job search via Adzuna API (Brazil, it-jobs category)
-├── tailor_resume.py       # Resume tailoring per job via Anthropic API
+├── tailor_resume.py       # Resume tailoring per job via DeepSeek API
 ├── send_application.py    # Sends email with resume, ONLY with manual confirmation
 ├── main.py                 # Runs search_jobs + tailor_resume in one command
 ├── requirements.txt
@@ -35,7 +35,8 @@ How it works today:
 - `search_jobs.py` queries Adzuna (`https://api.adzuna.com/v1/api/jobs/br/search/{page}`)
   by keywords, saves deduplicated results to `jobs_found.csv`.
 - `tailor_resume.py` takes `base_resume.md` (the full fact base, ~1000+ words) and
-  uses the Claude API to generate a CONDENSED version (~400-550 words, 4-7 most
+  uses the DeepSeek API (`deepseek-v4-pro`, via its Anthropic-SDK-compatible
+  endpoint) to generate a CONDENSED version (~400-550 words, 4-7 most
   relevant bullets) per job, saved to `applications/<company>_<title>_<id>/resume.md`
   + `job_info.txt` with the job link + a combined `applications/index.csv`.
 - `send_application.py` — optional email sending with confirmation (`input()`),
@@ -63,7 +64,7 @@ real API keys (not set up yet).
   in any prompt changes.
 - **Sending anything (email or otherwise) only happens after explicit user
   confirmation.** No "fully autonomous" mode without a confirm step.
-- All keys (Adzuna, Anthropic, Gmail) go through `.env` / environment variables via
+- All keys (Adzuna, DeepSeek, Gmail) go through `.env` / environment variables via
   `config.py` — never hardcode or commit real secrets. `.env` is gitignored.
 
 ## 3.1. Progress log (PROGRESS_LOG.md)
@@ -79,7 +80,8 @@ last 1-2 entries before starting work, to know what's already done.
    understand the current architecture before changing anything.
 2. Help the user get and fill in the API keys in `.env`:
    `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` (free signup at developer.adzuna.com/signup),
-   `ANTHROPIC_API_KEY`. `config.py` already loads `.env` via `python-dotenv`.
+   `DEEPSEEK_API_KEY` (platform.deepseek.com/api_keys). `config.py` already loads
+   `.env` via `python-dotenv`.
 3. Run `python search_jobs.py "desenvolvedor fullstack junior"` with real keys,
    confirm `jobs_found.csv` actually contains real Brazilian job postings.
 4. Run `python tailor_resume.py`, manually review 2-3 generated resumes in
@@ -99,17 +101,23 @@ last 1-2 entries before starting work, to know what's already done.
       Python, selectable text for ATS). Runs automatically after each resume when
       `EXPORT_PDF` is on; also usable standalone (`python export_pdf.py`).
 - [x] Robust error handling for API calls: Adzuna (`search_jobs._get_with_retries`)
-      and Anthropic (`tailor_resume.tailor_one`) now retry transient errors
-      (429/5xx/timeouts) with backoff, give clear messages on invalid keys, and
+      and the resume-tailoring call (`tailor_resume.tailor_one`) now retry transient
+      errors (429/5xx/timeouts) with backoff, give clear messages on invalid keys, and
       isolate per-job failures instead of crashing the batch. Also fixed a
       UnicodeEncodeError crash on non-UTF-8 Windows consoles (config.py reconfigures
       stdout/stderr to UTF-8).
+- [x] Switched the tailoring model from Anthropic (Claude Sonnet 4.5) to DeepSeek
+      (`deepseek-v4-pro`), using DeepSeek's Anthropic-SDK-compatible endpoint
+      (`https://api.deepseek.com/anthropic`) — same `anthropic` Python package, just
+      different `api_key`/`base_url`/`model`. Reason: ~7x cheaper per resume, and the
+      user already uses DeepSeek elsewhere. `ANTHROPIC_API_KEY` was replaced by
+      `DEEPSEEK_API_KEY` everywhere (`.env`, `config.py`, error messages).
 
 ### P1 — usability and quality
 - [ ] Track "already processed" jobs across runs (currently `tailor_resume.py`
       skips based on existing folder — fine, but `search_jobs.py` overwrites
       `jobs_found.csv` fully each run — should accumulate/dedupe across runs).
-- [ ] Simple CLI review step: before spending Anthropic API calls on every job
+- [ ] Simple CLI review step: before spending DeepSeek API calls on every job
       found, let the user look at `jobs_found.csv` and pick which ones to tailor
       (`--only-ids 1,2,3` or an interactive picker).
 - [ ] More search sources beyond Adzuna — evaluate which Brazilian job boards

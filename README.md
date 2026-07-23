@@ -6,9 +6,10 @@
 ## Как это работает
 
 1. `search_jobs.py` — ищет вакансии через открытый API Adzuna (покрывает Бразилию).
-2. `tailor_resume.py` — берёт `base_resume.md` и через Anthropic API готовит версию,
-   заточенную под конкретную вакансию (без выдумывания опыта — только переформулировка
-   и расстановка акцентов на реальных фактах).
+2. `tailor_resume.py` — берёт `base_resume.md` и через DeepSeek API (модель
+   `deepseek-v4-pro`) готовит версию, заточенную под конкретную вакансию (без
+   выдумывания опыта — только переформулировка и расстановка акцентов на реальных
+   фактах).
 3. Результаты складываются в `applications/<компания>_<вакансия>/` — там лежит
    `resume.md` и `job_info.txt` со ссылкой на вакансию.
 4. Вы просматриваете `applications/index.csv`, открываете нужные вакансии и
@@ -35,8 +36,10 @@ pip install -r requirements.txt --break-system-packages
 Зарегистрируйтесь на https://developer.adzuna.com/signup — вы получите `app_id` и
 `app_key`. Бесплатного тарифа достаточно для личного использования.
 
-### 3. Получить ключ Anthropic API
-На https://console.anthropic.com — нужен для адаптации резюме под вакансии.
+### 3. Получить ключ DeepSeek API
+На https://platform.deepseek.com/api_keys — нужен для адаптации резюме под вакансии.
+Модель `deepseek-v4-pro` заметно дешевле аналогов (~$0.002 за одно резюме), но
+требует предоплаченного баланса на платформе.
 
 ### 4. (Опционально) Настроить Gmail для отправки
 Если хотите использовать `send_application.py` — создайте "пароль приложения" на
@@ -48,7 +51,7 @@ https://myaccount.google.com/apppasswords для аккаунта vestek70@gmail
 ```
 ADZUNA_APP_ID=ваш_app_id
 ADZUNA_APP_KEY=ваш_app_key
-ANTHROPIC_API_KEY=ваш_ключ
+DEEPSEEK_API_KEY=ваш_ключ
 GMAIL_APP_PASSWORD=пароль_приложения   # опционально
 ```
 `config.py` подхватит их автоматически через `python-dotenv` (уже в
@@ -56,7 +59,7 @@ GMAIL_APP_PASSWORD=пароль_приложения   # опционально
 ```bash
 export ADZUNA_APP_ID="ваш_app_id"
 export ADZUNA_APP_KEY="ваш_app_key"
-export ANTHROPIC_API_KEY="ваш_ключ"
+export DEEPSEEK_API_KEY="ваш_ключ"
 ```
 
 ## Запуск

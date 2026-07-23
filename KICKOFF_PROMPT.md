@@ -40,7 +40,8 @@ picked up automatically, check it — it defines `github-mcp-server` (needs
 ## Step 4 — Get the tool actually working end to end
 
 1. Confirm `.env` has real values for `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` (free signup:
-   developer.adzuna.com/signup), and `ANTHROPIC_API_KEY`. If any are missing, stop
+   developer.adzuna.com/signup), and `DEEPSEEK_API_KEY` (platform.deepseek.com/api_keys).
+   If any are missing, stop
    and ask the user for them — don't guess or proceed with fake keys.
 2. Run `python search_jobs.py "desenvolvedor fullstack junior"` and confirm
    `jobs_found.csv` has real Brazilian listings.

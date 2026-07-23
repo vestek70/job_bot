@@ -23,8 +23,13 @@ except ImportError:
 ADZUNA_APP_ID = os.environ.get("ADZUNA_APP_ID")
 ADZUNA_APP_KEY = os.environ.get("ADZUNA_APP_KEY")
 
-# --- Anthropic (adaptação do currículo) ---
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+# --- DeepSeek (adaptação do currículo) ---
+# Usa o endpoint compatível com a API da Anthropic (mesmo SDK 'anthropic', só troca
+# base_url/api_key/model) — https://api-docs.deepseek.com/guides/anthropic_api
+# Chave: https://platform.deepseek.com/api_keys
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+DEEPSEEK_BASE_URL = "https://api.deepseek.com/anthropic"
+TAILOR_MODEL = "deepseek-v4-pro"
 
 # --- Gmail (envio opcional, só quando há e-mail direto de contato) ---
 GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS", "vestek70@gmail.com")

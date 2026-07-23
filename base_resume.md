@@ -99,7 +99,7 @@ Universidade Estadual de Cultura e Artes de Kazan — 2003–2008
 
 ## Idiomas
 - Russo: nativo
-- Português: [PLACEHOLDER: confirmar nível — ex. avançado/fluente]
+- Português: avançado
 - Inglês: básico (leitura técnica)
 
 ## Contato

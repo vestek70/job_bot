@@ -17,7 +17,7 @@ from search_jobs import save_jobs_csv, search_jobs
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Busca vagas (Adzuna) e gera currículos adaptados (Anthropic)."
+        description="Busca vagas (Adzuna) e gera currículos adaptados (DeepSeek)."
     )
     parser.add_argument("keywords", nargs="?", default=None,
                         help="palavras-chave da busca")
@@ -37,7 +37,7 @@ def main():
         return
 
     print(
-        "Gerando currículos adaptados (usa a API da Anthropic, pode levar "
+        "Gerando currículos adaptados (usa a API da DeepSeek, pode levar "
         "alguns minutos)..."
     )
     tailor_resume.main()

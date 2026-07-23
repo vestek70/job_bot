@@ -1,10 +1,11 @@
 """
 Gera uma versão do currículo (base_resume.md) adaptada para cada vaga em jobs_found.csv.
 
-Usa a API da Anthropic para reescrever ênfase/palavras-chave — SEM inventar
-experiência, empresas ou tecnologias que não estão no currículo base.
+Usa a API da DeepSeek (modelo deepseek-v4-pro, via endpoint compatível com a API da
+Anthropic) para reescrever ênfase/palavras-chave — SEM inventar experiência, empresas
+ou tecnologias que não estão no currículo base.
 
-Requer variável de ambiente ANTHROPIC_API_KEY.
+Requer variável de ambiente DEEPSEEK_API_KEY (chave: https://platform.deepseek.com/api_keys).
 
 Cada resultado é salvo em applications/<empresa>_<vaga>/resume.md para VOCÊ revisar
 antes de enviar. Nada é enviado automaticamente por este script.
@@ -34,6 +35,16 @@ AI, testing, etc.) most relevant to this job — usually 4 to 7 bullets total ac
 projects, not the full list.
 - Do NOT invent professional experience, companies, job titles, years of experience, \
 technologies, or certifications that are not in the base resume.
+- NEVER name a specific technology, framework, runtime, or tool unless it appears \
+VERBATIM in the base resume. This includes "reframing" — e.g. if the base resume \
+says "Deno/TypeScript Edge Functions", do NOT rewrite that as "Node.js" or "Express" \
+or any other technology just because it's conceptually similar or the job posting \
+asks for it. Rephrasing wording is fine; substituting or adding technology NAMES is \
+fabrication, full stop — even if hedged as "applied concepts" or "similar to X".
+- If the base resume contains a literal "[PLACEHOLDER...]" marker or is otherwise \
+unresolved/unclear for some fact, DO NOT invent or pick a value for it (even if the \
+placeholder text itself lists example options) — omit that line/bullet entirely from \
+the output instead of guessing.
 - You may rephrase sentences, reorder sections, and emphasize existing skills that \
 match the job.
 - You may add a short summary (2-3 lines) connecting the candidate's profile to the \
@@ -60,6 +71,9 @@ people person, visionary, change agent — and their direct Portuguese equivalen
 
 FINAL CHECK before output (do not output until every item passes):
 - No fabricated title, company, technology, metric, or certification.
+- Every technology NAME in the output appears verbatim somewhere in the base resume —
+  go back and check each one individually; delete/replace any that don't.
+- No placeholder value was invented or guessed.
 - No banned phrase from the list above.
 - Length is within the ~400-550 word target.
 - Tense is consistent (past for finished work, present for anything ongoing).
@@ -109,6 +123,21 @@ def _maybe_export_pdf(resume_path: str):
         print(f"  (PDF pulado: {e})", file=sys.stderr)
 
 
+def _extract_text(message) -> str:
+    """Pega o primeiro bloco de texto na resposta.
+
+    O endpoint da DeepSeek (deepseek-v4-pro) pode retornar um ThinkingBlock antes
+    do TextBlock quando o modo "thinking" está ativo — não dá para assumir que
+    content[0] já é o texto final.
+    """
+    for block in message.content:
+        if getattr(block, "type", None) == "text":
+            return block.text
+    raise RuntimeError(
+        "Resposta da API não contém bloco de texto (só thinking/outros tipos)."
+    )
+
+
 def tailor_one(client, base_resume: str, job: dict) -> str:
     prompt = TAILOR_PROMPT.format(
         resume=base_resume,
@@ -120,11 +149,12 @@ def tailor_one(client, base_resume: str, job: dict) -> str:
     for attempt in range(1, config.MAX_RETRIES + 1):
         try:
             message = client.messages.create(
-                model="claude-sonnet-4-5",
+                model=config.TAILOR_MODEL,
                 max_tokens=2000,
+                thinking={"type": "disabled"},
                 messages=[{"role": "user", "content": prompt}],
             )
-            return message.content[0].text
+            return _extract_text(message)
         except anthropic.AuthenticationError:
             # Chave inválida: não adianta repetir, é erro fatal para todo o lote.
             raise
@@ -141,14 +171,17 @@ def tailor_one(client, base_resume: str, job: dict) -> str:
 
 
 def main():
-    if not config.ANTHROPIC_API_KEY:
+    if not config.DEEPSEEK_API_KEY:
         print(
-            "ERRO: defina ANTHROPIC_API_KEY para gerar currículos adaptados.",
+            "ERRO: defina DEEPSEEK_API_KEY para gerar currículos adaptados "
+            "(chave: https://platform.deepseek.com/api_keys).",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    client = anthropic.Anthropic(
+        api_key=config.DEEPSEEK_API_KEY, base_url=config.DEEPSEEK_BASE_URL
+    )
     base_resume = load_base_resume()
     jobs = load_jobs()
 
@@ -169,8 +202,8 @@ def main():
                 tailored = tailor_one(client, base_resume, job)
             except anthropic.AuthenticationError:
                 print(
-                    "ERRO: ANTHROPIC_API_KEY inválida. Confira a chave no .env "
-                    "(https://console.anthropic.com).",
+                    "ERRO: DEEPSEEK_API_KEY inválida. Confira a chave no .env "
+                    "(https://platform.deepseek.com/api_keys).",
                     file=sys.stderr,
                 )
                 sys.exit(1)
