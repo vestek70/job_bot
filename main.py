@@ -4,6 +4,7 @@ Ponto de entrada: busca vagas e gera currículos adaptados.
 Uso:
   python main.py "desenvolvedor fullstack junior"
   python main.py "desenvolvedor fullstack" --include-senior
+  python main.py "desenvolvedor fullstack" --any-location
 
 Depois, revise manualmente a pasta applications/ antes de se candidatar ou enviar
 qualquer e-mail com send_application.py. Nada é enviado sozinho.
@@ -11,6 +12,7 @@ qualquer e-mail com send_application.py. Nada é enviado sozinho.
 import argparse
 import sys
 
+import config
 import dashboard
 import tailor_resume
 from search_jobs import save_jobs_csv, search_jobs
@@ -24,12 +26,17 @@ def main():
                         help="palavras-chave da busca")
     parser.add_argument("--include-senior", action="store_true",
                         help="não descartar vagas de nível sênior/lead/gestão")
+    parser.add_argument("--any-location", action="store_true",
+                        help=f"não descartar vagas presenciais fora de "
+                             f"{config.HOME_CITY} (por padrão só ficam vagas em "
+                             f"{config.HOME_CITY} ou remotas)")
     args = parser.parse_args(sys.argv[1:])
 
     print("Buscando vagas na Adzuna...")
     jobs = search_jobs(
         args.keywords,
         filter_seniority=False if args.include_senior else None,
+        filter_location=False if args.any_location else None,
     )
     save_jobs_csv(jobs)
 

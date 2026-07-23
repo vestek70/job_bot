@@ -2,7 +2,12 @@
 Testes das heurísticas puras. Rodar: python -m pytest test_filters.py
 (ou simplesmente: python test_filters.py — tem um runner mínimo embutido).
 """
-from filters import is_too_senior, filter_out_senior
+from filters import (
+    filter_out_non_local,
+    filter_out_senior,
+    is_local_or_remote,
+    is_too_senior,
+)
 from tailor_resume import slugify
 
 
@@ -42,6 +47,52 @@ def test_filter_out_senior_splits_correctly():
     kept, dropped = filter_out_senior(jobs)
     assert len(kept) == 1 and kept[0]["title"] == "Dev Júnior"
     assert len(dropped) == 2
+
+
+def test_home_city_is_kept_even_if_onsite():
+    job = {"title": "Dev Full Stack", "location": "Florianópolis, SC",
+           "description": "Presencial, sem home office."}
+    assert is_local_or_remote(job)
+
+
+def test_home_city_alias_floripa_is_kept():
+    job = {"title": "Dev Full Stack", "location": "Floripa - SC", "description": ""}
+    assert is_local_or_remote(job)
+
+
+def test_remote_job_elsewhere_is_kept():
+    job = {"title": "Dev Full Stack", "location": "São Paulo, SP",
+           "description": "Vaga 100% remota, pode morar em qualquer lugar do Brasil."}
+    assert is_local_or_remote(job)
+
+
+def test_remote_in_title_is_kept():
+    job = {"title": "Desenvolvedor Full Stack (Remoto)", "location": "São Paulo, SP",
+           "description": ""}
+    assert is_local_or_remote(job)
+
+
+def test_onsite_other_city_is_dropped():
+    job = {"title": "Dev Full Stack", "location": "São Paulo, SP",
+           "description": "Trabalho presencial no escritório."}
+    assert not is_local_or_remote(job)
+
+
+def test_ambiguous_location_without_remote_signal_is_dropped():
+    # localização vaga tipo "Brasil", sem menção a remoto -> conservador, descarta
+    job = {"title": "Dev Full Stack", "location": "Brasil", "description": ""}
+    assert not is_local_or_remote(job)
+
+
+def test_filter_out_non_local_splits_correctly():
+    jobs = [
+        {"title": "Dev A", "location": "Florianópolis, SC", "description": ""},
+        {"title": "Dev B (Remoto)", "location": "Rio de Janeiro, RJ", "description": ""},
+        {"title": "Dev C", "location": "São Paulo, SP", "description": "presencial"},
+    ]
+    kept, dropped = filter_out_non_local(jobs)
+    assert {j["title"] for j in kept} == {"Dev A", "Dev B (Remoto)"}
+    assert len(dropped) == 1 and dropped[0]["title"] == "Dev C"
 
 
 def test_slugify():

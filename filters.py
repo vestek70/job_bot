@@ -81,3 +81,66 @@ def filter_out_senior(jobs: list) -> tuple:
         else:
             kept.append(job)
     return kept, dropped
+
+
+# --- Filtro de localização: candidato não quer se mudar de cidade -----------
+#
+# Regra: só aceitar vaga se ela é NA cidade-base (presencial/híbrido local) OU
+# é remota (o candidato pode morar em qualquer lugar). Vaga presencial em
+# outra cidade é descartada.
+
+_HOME_CITY_ALIASES = ("florianopolis", "floripa")
+
+_REMOTE_PATTERNS = [
+    r"\bremot[ao]s?\b",  # remoto/remota/remotos/remotas (concordância de gênero)
+    r"\bremote\b", r"\bhome.?office\b", r"\banywhere\b",
+    r"\bwork from home\b", r"\bwfh\b",
+]
+_REMOTE_RE = re.compile("|".join(_REMOTE_PATTERNS))
+
+
+def _is_home_city(location: str, home_city: str) -> bool:
+    loc = _normalize(location)
+    home = _normalize(home_city or "")
+    if home and home in loc:
+        return True
+    return any(alias in loc for alias in _HOME_CITY_ALIASES)
+
+
+def _is_remote(title: str, location: str, description: str) -> bool:
+    combined = _normalize(f"{title} {location} {description}")
+    return bool(_REMOTE_RE.search(combined))
+
+
+def is_local_or_remote(job: dict, home_city: str = "Florianópolis") -> bool:
+    """
+    True se a vaga é aceitável para quem não quer se mudar de cidade:
+    - a vaga é na cidade-base (`home_city`, ex.: Florianópolis/Floripa), OU
+    - a vaga é sinalizada como remota (no título, local ou descrição).
+
+    Conservador: se não há nenhum sinal de remoto e a localização não é a
+    cidade-base, a vaga é descartada (mesmo que a localização esteja vazia/
+    ambígua) — preferimos perder uma vaga remota mal rotulada a sugerir uma
+    vaga presencial fora da cidade.
+    """
+    location = job.get("location", "")
+    title = job.get("title", "")
+    description = job.get("description", "")
+    if _is_home_city(location, home_city):
+        return True
+    return _is_remote(title, location, description)
+
+
+def filter_out_non_local(jobs: list, home_city: str = "Florianópolis") -> tuple:
+    """
+    Separa as vagas em (mantidas, descartadas_por_localizacao).
+    Mantém só vagas na `home_city` ou remotas — descarta presencial em
+    outra cidade (candidato não quer se mudar).
+    """
+    kept, dropped = [], []
+    for job in jobs:
+        if is_local_or_remote(job, home_city):
+            kept.append(job)
+        else:
+            dropped.append(job)
+    return kept, dropped

@@ -112,6 +112,17 @@ last 1-2 entries before starting work, to know what's already done.
       different `api_key`/`base_url`/`model`. Reason: ~7x cheaper per resume, and the
       user already uses DeepSeek elsewhere. `ANTHROPIC_API_KEY` was replaced by
       `DEEPSEEK_API_KEY` everywhere (`.env`, `config.py`, error messages).
+- [x] Local review/apply dashboard: `dashboard.py` generates
+      `applications/dashboard.html` (cards per job: company/location/status, link
+      to the job posting, link to the resume PDF). Regenerated automatically by
+      `main.py` after tailoring. Nothing is sent or opened automatically.
+- [x] Location filter: candidate isn't willing to relocate. `filters.py`
+      (`is_local_or_remote`/`filter_out_non_local`) keeps only jobs in
+      `config.HOME_CITY` (Florianópolis, default) or explicitly signaled as
+      remote (title/location/description) — drops on-site jobs elsewhere, even
+      with an ambiguous location like "Brasil" if no remote signal is present
+      (conservative by design). Toggle off with `--any-location`. Covered by
+      `test_filters.py`.
 
 ### P1 — usability and quality
 - [ ] Track "already processed" jobs across runs (currently `tailor_resume.py`
@@ -121,10 +132,14 @@ last 1-2 entries before starting work, to know what's already done.
       found, let the user look at `jobs_found.csv` and pick which ones to tailor
       (`--only-ids 1,2,3` or an interactive picker).
 - [ ] More search sources beyond Adzuna — evaluate which Brazilian job boards
-      (Gupy, Vagas.com, InfoJobs, Catho) expose a public RSS/JSON feed without login.
+      (Gupy, Vagas.com, InfoJobs, Catho) expose a public RSS/JSON feed without
+      login. Higher priority now: Adzuna alone + seniority filter + the new
+      location filter (Florianópolis-or-remote-only) combined can yield very
+      few or zero results per run for a narrow keyword — single-source
+      coverage is the main bottleneck, not the filters themselves.
 - [~] Unit tests (`pytest`) for pure functions: started in `test_filters.py`
-      (`slugify`, `is_too_senior`, `filter_out_senior`). Still missing: CSV parsing,
-      prompt building.
+      (`slugify`, `is_too_senior`, `filter_out_senior`, `is_local_or_remote`,
+      `filter_out_non_local`). Still missing: CSV parsing, prompt building.
 
 ### P2 — nice to have
 - [ ] Lightweight status tracker on top of `applications/index.csv` (statuses:

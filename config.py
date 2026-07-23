@@ -49,6 +49,12 @@ MAX_PAGES = 3
 # Pode desligar por vaga com a flag --include-senior na linha de comando.
 FILTER_SENIORITY = os.environ.get("FILTER_SENIORITY", "1") not in ("0", "false", "")
 
+# Cidade onde o candidato mora e não pretende se mudar. Vagas presenciais em
+# outra cidade são descartadas por padrão — só ficam vagas na HOME_CITY ou
+# remotas (ver filters.is_local_or_remote). Desligar com --any-location.
+HOME_CITY = os.environ.get("HOME_CITY", "Florianópolis")
+FILTER_LOCATION = os.environ.get("FILTER_LOCATION", "1") not in ("0", "false", "")
+
 # --- Rede / retries (tratamento de erros de API) ---
 HTTP_TIMEOUT = 30          # segundos por requisição
 MAX_RETRIES = 3            # tentativas em erros transitórios (429/5xx/timeout)

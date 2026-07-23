@@ -19,7 +19,7 @@ import time
 import requests
 
 import config
-from filters import filter_out_senior
+from filters import filter_out_non_local, filter_out_senior
 
 
 class AdzunaError(Exception):
@@ -94,7 +94,7 @@ def fetch_page(page: int, keywords: str) -> dict:
 
 
 def search_jobs(keywords: str = None, max_pages: int = None,
-                filter_seniority: bool = None) -> list:
+                filter_seniority: bool = None, filter_location: bool = None) -> list:
     if not config.ADZUNA_APP_ID or not config.ADZUNA_APP_KEY:
         print(
             "ERRO: defina ADZUNA_APP_ID e ADZUNA_APP_KEY no .env (cadastro gratuito em "
@@ -107,6 +107,8 @@ def search_jobs(keywords: str = None, max_pages: int = None,
     max_pages = max_pages or config.MAX_PAGES
     if filter_seniority is None:
         filter_seniority = config.FILTER_SENIORITY
+    if filter_location is None:
+        filter_location = config.FILTER_LOCATION
 
     all_jobs = []
     seen_ids = set()
@@ -152,6 +154,14 @@ def search_jobs(keywords: str = None, max_pages: int = None,
                   f"(use --include-senior para incluí-las).")
         all_jobs = kept
 
+    if filter_location:
+        kept, dropped = filter_out_non_local(all_jobs, home_city=config.HOME_CITY)
+        if dropped:
+            print(f"Filtradas {len(dropped)} vaga(s) presenciais fora de "
+                  f"{config.HOME_CITY} e sem sinal de remoto "
+                  f"(use --any-location para incluí-las).")
+        all_jobs = kept
+
     return all_jobs
 
 
@@ -175,6 +185,10 @@ def _parse_args(argv):
                    help="palavras-chave da busca (ex.: 'desenvolvedor fullstack junior')")
     p.add_argument("--include-senior", action="store_true",
                    help="não descartar vagas de nível sênior/lead/gestão")
+    p.add_argument("--any-location", action="store_true",
+                   help=f"não descartar vagas presenciais fora de "
+                        f"{config.HOME_CITY} (por padrão só ficam vagas em "
+                        f"{config.HOME_CITY} ou remotas)")
     return p.parse_args(argv)
 
 
@@ -183,5 +197,6 @@ if __name__ == "__main__":
     found = search_jobs(
         args.keywords,
         filter_seniority=False if args.include_senior else None,
+        filter_location=False if args.any_location else None,
     )
     save_jobs_csv(found)
