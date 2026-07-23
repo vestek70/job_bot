@@ -128,6 +128,29 @@ def test_filter_out_irrelevant_splits():
     assert len(dropped) == 2
 
 
+def test_hybrid_other_city_is_dropped():
+    # híbrido em SP/RJ = precisa ir ao escritório em outra cidade -> descarta
+    j1 = {"id": "1", "title": "Fullstack", "location": "São Paulo, SP",
+          "description": "atuacao hibrida, 2 dias remotos e 3 presenciais"}
+    j2 = {"id": "2", "title": "Python Full Stack",
+          "location": "Rio de Janeiro", "description": "hibrido (3x presencial / 2x remoto)"}
+    assert not is_local_or_remote(j1)
+    assert not is_local_or_remote(j2)
+
+
+def test_hybrid_in_home_city_is_kept():
+    # híbrido EM Florianópolis é ok (o candidato mora lá)
+    j = {"id": "3", "title": "Dev", "location": "Florianópolis, SC",
+         "description": "modelo hibrido, 3x presencial"}
+    assert is_local_or_remote(j)
+
+
+def test_pure_remote_brazil_is_kept():
+    j = {"id": "4", "title": "Dev", "location": "Brasil",
+         "description": "100% remoto, clt"}
+    assert is_local_or_remote(j)
+
+
 def test_intl_remote_foreign_country_is_dropped():
     # fontes internacionais presas a outro país -> descartadas
     for loc in ["Remoto (Berlin)", "Remoto (Markt Indersdorf)",

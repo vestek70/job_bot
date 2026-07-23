@@ -127,6 +127,12 @@ last 1-2 entries before starting work, to know what's already done.
       German/Mexico/India leaks on the first big run exposed. Adzuna (numeric
       ids) and Jooble are BR APIs, trusted as Brazil (no region check). Toggle
       off with `--any-location`. Covered by `test_filters.py`.
+- [x] Hybrid jobs treated as on-site: a hybrid role ("híbrido: 3x presencial
+      / 2x remoto") requires physical presence, so `filters._is_hybrid`
+      flags it and `is_local_or_remote` keeps it only if it's in HOME_CITY —
+      hybrid SP/RJ jobs were leaking through because "remoto" appears in the
+      description. On-site = Florianópolis only; remote = anywhere reachable
+      from Brazil. Covered by `test_filters.py`.
 
 ### P1 — usability and quality
 - [ ] Track "already processed" jobs across runs (currently `tailor_resume.py`

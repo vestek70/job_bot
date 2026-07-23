@@ -146,6 +146,21 @@ def _is_remote(title: str, location: str, description: str) -> bool:
     return bool(_REMOTE_RE.search(combined))
 
 
+# Híbrido = exige presença física alguns dias -> só serve se for na cidade-base.
+# Vagas híbridas em SP/RJ vazavam porque mencionam "remoto" na descrição
+# ("híbrido: 3x presencial / 2x remoto"). Detectamos "híbrido" e padrões de
+# "N dias presenciais".
+_HYBRID_RE = re.compile(
+    r"hibrid|hybrid|semi.?presencial|"
+    r"dias?\s+presenci|presenci\w*\s+\d|\d\s*x?\s*dias?\s*presenci|\d\s*presenci"
+)
+
+
+def _is_hybrid(title: str, location: str, description: str) -> bool:
+    combined = _normalize(f"{title} {location} {description}")
+    return bool(_HYBRID_RE.search(combined))
+
+
 # Fontes internacionais (id com esses prefixos) podem trazer vagas remotas
 # presas a OUTRO país (ex.: "Remoto (Berlin)", "Remoto (México)"), que não
 # servem para quem mora no Brasil (idioma + geo). A Adzuna (ids numéricos) é
@@ -194,12 +209,16 @@ def is_local_or_remote(job: dict, home_city: str = "Florianópolis") -> bool:
     location = job.get("location", "")
     title = job.get("title", "")
     description = job.get("description", "")
+    # Na cidade-base tudo serve (presencial, híbrido ou remoto).
     if _is_home_city(location, home_city):
         return True
+    # Híbrido fora da cidade-base = exige ir ao escritório em outra cidade -> não.
+    if _is_hybrid(title, location, description):
+        return False
     if not _is_remote(title, location, description):
         return False
-    # Vaga remota. Se veio de fonte internacional, exige região que aceite o
-    # Brasil (descarta 'Remoto (Berlin)', 'Remoto (México)', India-only, etc.).
+    # Vaga remota (de verdade). Se veio de fonte internacional, exige região que
+    # aceite o Brasil (descarta 'Remoto (Berlin)', 'Remoto (México)', etc.).
     job_id = str(job.get("id", ""))
     if job_id.startswith(_INTL_SOURCE_PREFIXES):
         return _remote_region_ok(location)
