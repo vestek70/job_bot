@@ -13,6 +13,7 @@ import csv
 import os
 import re
 import sys
+import time
 
 import anthropic
 
@@ -93,6 +94,21 @@ def load_base_resume(path: str = "base_resume.md") -> str:
         return f.read()
 
 
+def _maybe_export_pdf(resume_path: str):
+    """Gera resume.pdf ao lado do .md, se EXPORT_PDF e as libs estiverem disponíveis.
+    Nunca derruba o pipeline: em falha, só avisa e segue (o .md continua válido)."""
+    if not config.EXPORT_PDF:
+        return
+    try:
+        import export_pdf
+        export_pdf.convert_file(resume_path)
+    except ImportError:
+        print("  (PDF pulado: instale 'markdown' e 'xhtml2pdf' — pip install -r "
+              "requirements.txt)", file=sys.stderr)
+    except Exception as e:
+        print(f"  (PDF pulado: {e})", file=sys.stderr)
+
+
 def tailor_one(client, base_resume: str, job: dict) -> str:
     prompt = TAILOR_PROMPT.format(
         resume=base_resume,
@@ -100,12 +116,28 @@ def tailor_one(client, base_resume: str, job: dict) -> str:
         company=job["company"],
         description=(job["description"] or "")[:4000],
     )
-    message = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=2000,
-        messages=[{"role": "user", "content": prompt}],
+    last_exc = None
+    for attempt in range(1, config.MAX_RETRIES + 1):
+        try:
+            message = client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=2000,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return message.content[0].text
+        except anthropic.AuthenticationError:
+            # Chave inválida: não adianta repetir, é erro fatal para todo o lote.
+            raise
+        except (anthropic.RateLimitError, anthropic.APIStatusError,
+                anthropic.APIConnectionError) as e:
+            last_exc = e
+            wait = config.RETRY_BACKOFF * attempt
+            print(f"  API instável ({type(e).__name__}), repetindo em {wait:.0f}s "
+                  f"(tentativa {attempt}/{config.MAX_RETRIES})...", file=sys.stderr)
+            time.sleep(wait)
+    raise RuntimeError(
+        f"Falha ao gerar currículo após {config.MAX_RETRIES} tentativas: {last_exc}"
     )
-    return message.content[0].text
 
 
 def main():
@@ -133,9 +165,22 @@ def main():
             print(f"Já existe, pulando: {resume_path}")
         else:
             print(f"Adaptando currículo para: {job['title']} @ {job['company']}...")
-            tailored = tailor_one(client, base_resume, job)
+            try:
+                tailored = tailor_one(client, base_resume, job)
+            except anthropic.AuthenticationError:
+                print(
+                    "ERRO: ANTHROPIC_API_KEY inválida. Confira a chave no .env "
+                    "(https://console.anthropic.com).",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            except RuntimeError as e:
+                # Falha só nesta vaga: registra e segue para a próxima.
+                print(f"  PULANDO esta vaga — {e}", file=sys.stderr)
+                continue
             with open(resume_path, "w", encoding="utf-8") as f:
                 f.write(tailored)
+            _maybe_export_pdf(resume_path)
 
         with open(os.path.join(folder_path, "job_info.txt"), "w", encoding="utf-8") as f:
             f.write(f"Título: {job['title']}\n")

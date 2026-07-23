@@ -69,12 +69,30 @@ python main.py "desenvolvedor fullstack junior"
 
 1. Откройте `applications/index.csv` — там компания, вакансия, ссылка, статус.
 2. Прочитайте `resume.md` в каждой папке, поправьте при необходимости.
-3. Экспортируйте в PDF/DOCX перед отправкой (можно попросить меня об этом для
-   конкретных вакансий).
+3. Рядом с `resume.md` уже лежит `resume.pdf` (генерируется автоматически, с
+   настоящим выделяемым текстом — читается ATS-парсерами). Если правили `.md`
+   вручную — перегенерируйте PDF: `python export_pdf.py applications/папка_вакансии`
+   (или `python export_pdf.py` — пересоберёт все).
 4. Откликайтесь по ссылке вручную, или, если есть email — используйте:
 ```bash
 python send_application.py applications/empresa_vaga_123 email@empresa.com
 ```
+
+### Фильтр по уровню (junior/pleno)
+
+По умолчанию отсеиваются вакансии уровня выше pleno (в названии — senior, sênior,
+lead, especialista, arquiteto, gerente и т.п.; либо в описании требуется ≥5 лет
+опыта). Чтобы НЕ отсеивать сеньорские — добавьте флаг:
+```bash
+python main.py "desenvolvedor fullstack" --include-senior
+```
+Логика в `filters.py`, покрыта тестами: `python test_filters.py`.
+
+### Экспорт в PDF
+
+Автоматически включён (`EXPORT_PDF=1`). Использует `markdown` + `xhtml2pdf` (чистый
+Python, ставятся из `requirements.txt`, работают на Windows без внешних бинарников).
+Отключить: `EXPORT_PDF=0` в `.env`.
 
 ## Доп. источник вакансий: ai-dev-jobs-mcp (опционально, для AI/ML-ролей)
 
@@ -92,29 +110,25 @@ claude mcp add --transport http ai-dev-jobs https://aidevboard.com/mcp
 
 ## Подключение к GitHub (github.com/vestek70/job_bot)
 
-**⚠️ Сначала удалите вручную папку `.git`** в `D:\Bot_job\job_bot\` — я попытался
-сделать `git init` отсюда, но подключённый диск (сетевой mount) не даёт git
-нормально писать/удалять служебные файлы, и осталась битая недоинициализированная
-папка `.git` с зависшим `index.lock`. Я не могу её удалить с этой стороны (нет прав
-на mount) — удалите вручную через проводник Windows или командой в VS Code:
-```powershell
-Remove-Item -Recurse -Force ".git"
-```
+**Готово, кроме пуша.** Проблема с сетевым mount из прошлой сессии решена — git
+теперь работает нормально. Репозиторий уже инициализирован, сделан первый коммит,
+и добавлен remote `origin` → `https://github.com/vestek70/job_bot.git`. `.env`
+защищён `.gitignore` и в коммит не попал.
 
-Дальше — инициализация и первый пуш. Делайте это **из терминала VS Code на вашем
-компьютере**, не через меня: так GitHub-авторизация пройдёт через браузер безопасно,
-без передачи токена в чат.
+Осталось только запушить. Сделайте это **из терминала VS Code на вашем компьютере**,
+не через меня: так GitHub-авторизация пройдёт через браузер безопасно, без передачи
+токена в чат:
 
 ```bash
-git init -b main
-git add -A
-git commit -m "Initial commit: job_bot"
-git remote add origin https://github.com/vestek70/job_bot.git
 git push -u origin main
 ```
 
 Git запросит авторизацию в GitHub (через браузер или Git Credential Manager,
-обычно уже настроен в VS Code) — просто следуйте подсказке.
+обычно уже настроен в VS Code) — просто следуйте подсказке. Если remote вдруг не
+настроен (`git remote -v` пустой), добавьте его:
+```bash
+git remote add origin https://github.com/vestek70/job_bot.git
+```
 
 ### Какие MCP реально нужны для этого проекта
 

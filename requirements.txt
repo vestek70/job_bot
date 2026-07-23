@@ -1,3 +1,5 @@
 requests
 anthropic
 python-dotenv
+markdown
+xhtml2pdf

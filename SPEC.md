@@ -91,13 +91,19 @@ last 1-2 entries before starting work, to know what's already done.
 ### P0 — needed for a working MVP
 - [x] `.env` support via `python-dotenv` (done — verify it still works after any
       refactor).
-- [ ] Filter jobs by seniority level: Adzuna doesn't always return a structured
-      seniority field — need a heuristic (filter out "senior", "sênior",
-      "especialista", etc. from title/description when searching junior/pleno).
-- [ ] Export `resume.md` to PDF (most application forms require PDF/DOCX, not
-      Markdown). Options: `pandoc`, or `markdown2`/`weasyprint` + `wkhtmltopdf`.
-- [ ] Robust error handling for API calls (rate limits, timeouts, invalid keys)
-      with clear messages instead of raw tracebacks.
+- [x] Filter jobs by seniority level: heuristic in `filters.py` (`is_too_senior`)
+      drops titles with senior/lead/gestão terms and, for neutral titles, jobs whose
+      description requires ≥5 years. Keeps júnior/pleno (and pleno/sênior hybrids).
+      Toggle off with `--include-senior`. Covered by `test_filters.py`.
+- [x] Export `resume.md` to PDF via `export_pdf.py` (markdown + xhtml2pdf, pure
+      Python, selectable text for ATS). Runs automatically after each resume when
+      `EXPORT_PDF` is on; also usable standalone (`python export_pdf.py`).
+- [x] Robust error handling for API calls: Adzuna (`search_jobs._get_with_retries`)
+      and Anthropic (`tailor_resume.tailor_one`) now retry transient errors
+      (429/5xx/timeouts) with backoff, give clear messages on invalid keys, and
+      isolate per-job failures instead of crashing the batch. Also fixed a
+      UnicodeEncodeError crash on non-UTF-8 Windows consoles (config.py reconfigures
+      stdout/stderr to UTF-8).
 
 ### P1 — usability and quality
 - [ ] Track "already processed" jobs across runs (currently `tailor_resume.py`
@@ -108,8 +114,9 @@ last 1-2 entries before starting work, to know what's already done.
       (`--only-ids 1,2,3` or an interactive picker).
 - [ ] More search sources beyond Adzuna — evaluate which Brazilian job boards
       (Gupy, Vagas.com, InfoJobs, Catho) expose a public RSS/JSON feed without login.
-- [ ] Unit tests (`pytest`) for pure functions: `slugify`, CSV parsing, prompt
-      building.
+- [~] Unit tests (`pytest`) for pure functions: started in `test_filters.py`
+      (`slugify`, `is_too_senior`, `filter_out_senior`). Still missing: CSV parsing,
+      prompt building.
 
 ### P2 — nice to have
 - [ ] Lightweight status tracker on top of `applications/index.csv` (statuses:

@@ -1,4 +1,15 @@
 import os
+import sys
+
+# Consoles Windows em locale não-UTF-8 (ex.: cp1251/cp866) quebram com
+# UnicodeEncodeError ao imprimir acentos do português. Reconfigura stdout/stderr
+# para UTF-8 (com errors='replace') logo no import — todos os entry points
+# importam config, então isso vale para todo o projeto.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass  # stream já ok, ou não suporta reconfigure (ex.: redirecionado)
 
 try:
     from dotenv import load_dotenv
@@ -29,6 +40,18 @@ CATEGORY = "it-jobs"
 RESULTS_PER_PAGE = 20
 MAX_PAGES = 3
 
+# Descartar vagas claramente acima de júnior/pleno (ver filters.py).
+# Pode desligar por vaga com a flag --include-senior na linha de comando.
+FILTER_SENIORITY = os.environ.get("FILTER_SENIORITY", "1") not in ("0", "false", "")
+
+# --- Rede / retries (tratamento de erros de API) ---
+HTTP_TIMEOUT = 30          # segundos por requisição
+MAX_RETRIES = 3            # tentativas em erros transitórios (429/5xx/timeout)
+RETRY_BACKOFF = 2.0        # segundos base; cresce exponencialmente por tentativa
+
 # --- Arquivos ---
 OUTPUT_DIR = "applications"
 JOBS_CSV = "jobs_found.csv"
+
+# Gerar também um resume.pdf ao lado de cada resume.md (precisa de markdown+xhtml2pdf).
+EXPORT_PDF = os.environ.get("EXPORT_PDF", "1") not in ("0", "false", "")
