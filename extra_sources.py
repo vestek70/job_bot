@@ -364,12 +364,21 @@ def fetch_jooble() -> list:
 
 def fetch_all_extra_sources() -> list:
     """Agrega todas as fontes extras habilitadas (além da Adzuna). Nunca
-    lança exceção — cada fonte trata seus próprios erros e retorna []."""
+    lança exceção — cada fonte trata seus próprios erros e retorna []. Imprime
+    a contagem por fonte, para ficar claro que NÃO é só a Adzuna."""
+    sources = [
+        ("Remotive", fetch_remotive),
+        ("Arbeitnow", fetch_arbeitnow),
+        ("RemoteOK", fetch_remoteok),
+        ("Jobicy", fetch_jobicy),
+        ("The Muse", fetch_themuse),
+        ("Jooble", fetch_jooble),
+    ]
     jobs = []
-    jobs.extend(fetch_remotive())
-    jobs.extend(fetch_arbeitnow())
-    jobs.extend(fetch_remoteok())
-    jobs.extend(fetch_jobicy())
-    jobs.extend(fetch_themuse())
-    jobs.extend(fetch_jooble())
+    counts = []
+    for name, fn in sources:
+        got = fn()
+        counts.append(f"{name}: {len(got)}")
+        jobs.extend(got)
+    print("  Fontes extras — " + " | ".join(counts))
     return jobs

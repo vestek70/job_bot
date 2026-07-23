@@ -37,7 +37,8 @@ def main():
                              "base_resume.md ou o prompt)")
     args = parser.parse_args(sys.argv[1:])
 
-    print("Buscando vagas na Adzuna...")
+    print("Buscando vagas (Adzuna + 6 fontes extras: Remotive, Arbeitnow, "
+          "RemoteOK, Jobicy, The Muse, Jooble)...")
     jobs = search_jobs(
         args.keywords,
         filter_seniority=False if args.include_senior else None,
