@@ -17,6 +17,8 @@ Uso:
 """
 import argparse
 import csv
+import datetime
+import os
 import sys
 import time
 
@@ -237,18 +239,87 @@ def search_jobs(keywords: str = None, max_pages: int = None,
     return all_jobs
 
 
-def save_jobs_csv(jobs: list, path: str = None):
+JOBS_FIELDNAMES = [
+    "id", "title", "company", "location", "salary_min",
+    "salary_max", "description", "redirect_url", "created",
+    "first_seen", "last_seen",
+]
+
+
+def _load_existing_jobs(path: str) -> dict:
+    """Lê o jobs_found.csv atual (se existir), indexado por id. Usado para
+    fazer merge em vez de sobrescrever — preserva vagas antigas que não
+    voltaram a aparecer na busca mais recente (podem só estar em página
+    seguinte, fonte instável, etc.), junto com first_seen/last_seen."""
+    existing = {}
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    if row.get("id"):
+                        existing[row["id"]] = row
+        except (OSError, csv.Error):
+            pass
+    return existing
+
+
+def save_jobs_csv(jobs: list, path: str = None) -> list:
+    """Salva jobs_found.csv fazendo MERGE com o arquivo anterior (não
+    sobrescreve): vagas novas entram com first_seen=last_seen=hoje; vagas já
+    conhecidas têm o conteúdo atualizado e last_seen=hoje; vagas antigas que
+    não vieram nesta busca são mantidas (com last_seen antigo) para não
+    perder currículo/status já gerados — a menos que estejam paradas há mais
+    de config.STALE_JOB_DROP_DAYS dias, aí são descartadas (provavelmente
+    encerradas). Retorna a lista final (mesclada) que foi gravada."""
     path = path or config.JOBS_CSV
-    fieldnames = [
-        "id", "title", "company", "location", "salary_min",
-        "salary_max", "description", "redirect_url", "created",
-    ]
+    today = datetime.date.today().isoformat()
+    existing = _load_existing_jobs(path)
+
+    merged = dict(existing)  # começa com tudo que já tinha
+    seen_ids_now = set()
+    for job in jobs:
+        jid = job.get("id")
+        if not jid:
+            continue
+        seen_ids_now.add(jid)
+        row = {k: job.get(k, "") for k in JOBS_FIELDNAMES}
+        old = existing.get(jid)
+        row["first_seen"] = (old or {}).get("first_seen") or today
+        row["last_seen"] = today
+        merged[jid] = row
+
+    dropped_stale = 0
+    final = {}
+    for jid, row in merged.items():
+        if jid in seen_ids_now:
+            final[jid] = row
+            continue
+        # vaga antiga que não apareceu nesta busca: mantém, a não ser que já
+        # esteja parada há tempo demais
+        last_seen = row.get("last_seen") or row.get("created") or today
+        try:
+            age_days = (datetime.date.today() -
+                        datetime.date.fromisoformat(last_seen[:10])).days
+        except ValueError:
+            age_days = 0
+        if age_days > config.STALE_JOB_DROP_DAYS:
+            dropped_stale += 1
+            continue
+        final[jid] = row
+
+    ordered = sorted(final.values(), key=lambda r: r.get("last_seen", ""), reverse=True)
+
     with open(path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=JOBS_FIELDNAMES)
         writer.writeheader()
-        for job in jobs:
-            writer.writerow(job)
-    print(f"{len(jobs)} vagas salvas em {path}")
+        for row in ordered:
+            writer.writerow(row)
+
+    novas = len(seen_ids_now - existing.keys())
+    print(f"{len(ordered)} vaga(s) em {path} ({novas} nova(s) nesta busca"
+          + (f", {dropped_stale} removida(s) por inatividade >"
+             f"{config.STALE_JOB_DROP_DAYS}d" if dropped_stale else "") + ").")
+    return ordered
 
 
 def _parse_args(argv):

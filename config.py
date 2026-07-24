@@ -140,5 +140,11 @@ RETRY_BACKOFF = 2.0        # segundos base; cresce exponencialmente por tentativ
 OUTPUT_DIR = "applications"
 JOBS_CSV = "jobs_found.csv"
 
+# jobs_found.csv agora acumula entre execuções (merge), em vez de ser
+# sobrescrito — senão cada nova busca apagava o histórico de vagas já vistas/
+# com currículo gerado. Vagas que não aparecem mais em nenhuma busca há mais
+# de STALE_JOB_DROP_DAYS dias são consideradas encerradas e removidas.
+STALE_JOB_DROP_DAYS = int(os.environ.get("STALE_JOB_DROP_DAYS", "45"))
+
 # Gerar também um resume.pdf ao lado de cada resume.md (precisa de markdown+xhtml2pdf).
 EXPORT_PDF = os.environ.get("EXPORT_PDF", "1") not in ("0", "false", "")

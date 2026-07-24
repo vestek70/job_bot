@@ -135,9 +135,17 @@ last 1-2 entries before starting work, to know what's already done.
       from Brazil. Covered by `test_filters.py`.
 
 ### P1 — usability and quality
-- [ ] Track "already processed" jobs across runs (currently `tailor_resume.py`
-      skips based on existing folder — fine, but `search_jobs.py` overwrites
-      `jobs_found.csv` fully each run — should accumulate/dedupe across runs).
+- [x] Track "already processed" jobs across runs — `search_jobs.save_jobs_csv`
+      now MERGES with the existing `jobs_found.csv` instead of overwriting:
+      new jobs get `first_seen`/`last_seen`, returning jobs get content
+      refreshed + `last_seen` bumped, jobs missing from the latest search are
+      kept (marked stale in the panel) and only dropped after
+      `config.STALE_JOB_DROP_DAYS` (default 45) days unseen.
+- [x] "Already applied" tracking — `status_store.py` (`applications/status.csv`,
+      keyed by job id, independent of the resume folder). Auto-recorded on
+      successful `/send`/`/send_manual`; manual toggle (`/mark_applied`) in
+      the panel for platform jobs applied to on-site. Panel shows a badge +
+      date, plus an "⚠ not in latest search" badge for stale rows.
 - [x] Select-then-tailor: `main.py` no longer auto-tailors every job (search
       only → `jobs_found.csv`). A local Flask panel (`app.py`, 127.0.0.1:5000)
       lists all found jobs and tailors ONE on demand when the user clicks

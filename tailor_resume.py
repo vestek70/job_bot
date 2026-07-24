@@ -77,6 +77,33 @@ headings (e.g. "Resumo", "Experiência", "Formação", not creative alternatives
 - Bullet character: "-" only.
 - Spell out acronyms on first use, e.g. "Row Level Security (RLS)".
 
+ATS / AI-SCREENING KEYWORD MATCH (the resume is first read by an AI/ATS that scores \
+it against this exact job posting — maximize the overlap, but ONLY with things that \
+are TRUE per the base resume):
+- Read the job posting and extract its key terms: required technologies, \
+responsibilities, methodologies, and the exact job-title wording.
+- For every term that the candidate GENUINELY has (it appears in the base resume), \
+MIRROR THE POSTING'S EXACT WORDING AND SPELLING. If the base resume says "PostgreSQL" \
+and the posting says "Postgres", you may write "PostgreSQL (Postgres)". If the posting \
+writes "REST APIs" and the base says "APIs REST", use the posting's phrasing. Match \
+casing/spelling the ATS is looking for (e.g. "JavaScript", "CI/CD", "React.js"). \
+This is keyword alignment of REAL skills, not fabrication.
+- Set the headline/title line to match the posting's job title as closely as the \
+truth allows (e.g. posting "Desenvolvedor Web Pleno" and base supports it → use that \
+wording; if it says a seniority he doesn't have, keep his real level).
+- Put the most posting-relevant real keywords EARLY: in the Resumo (first 2-3 lines) \
+and near the top of "Habilidades técnicas". ATS keyword-density and top-of-document \
+weighting both favor this.
+- Keep a "Habilidades técnicas" section that lists the real skills using the posting's \
+own vocabulary, so exact-match keyword scans hit. Do not list a skill the base resume \
+doesn't support just because the posting wants it.
+- If a required technology is genuinely missing from the base resume, do NOT insert it \
+as a skill. At most, in the summary, note transferable experience truthfully (e.g. \
+"experiência com APIs REST em Deno/TypeScript, aprendo novas stacks rápido") — never \
+claim the missing tech itself.
+- Do not keyword-stuff: every keyword must sit in a real, truthful sentence or the \
+skills list. Repetition beyond natural use hurts with modern AI screeners.
+
 BANNED PHRASES — do not use any of these (rewrite with concrete evidence instead):
 results-driven, dynamic individual, highly motivated, team player, proven track \
 record, passionate about, detail-oriented, self-starter, hard worker, strong \
@@ -92,6 +119,9 @@ FINAL CHECK before output (do not output until every item passes):
 - No banned phrase from the list above.
 - Length is within the ~400-550 word target.
 - Tense is consistent (past for finished work, present for anything ongoing).
+- Real skills that overlap with the posting use the POSTING'S wording/spelling and \
+appear early (Resumo + top of Habilidades técnicas), to score well with the ATS/AI \
+screener — without adding any skill the base resume doesn't support.
 
 BASE RESUME (complete fact source — do not copy everything, select from it):
 ---
