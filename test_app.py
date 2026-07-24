@@ -7,6 +7,7 @@ import os
 import tempfile
 
 import config
+import favorites_store
 import status_store
 import tailor_resume
 import send_application
@@ -211,6 +212,52 @@ def test_delete_route_esconde_vaga():
             assert r.status_code == 400
         finally:
             config.OUTPUT_DIR = old_dir
+
+
+def test_favorite_route():
+    import app as flask_app
+    old_dir = config.OUTPUT_DIR
+    with tempfile.TemporaryDirectory() as d:
+        config.OUTPUT_DIR = d
+        try:
+            c = flask_app.app.test_client()
+            r = c.post("/favorite", json={"id": "fav1", "title": "Dev", "company": "Acme",
+                                          "favorite": True})
+            assert r.status_code == 200 and r.get_json()["favorite"] is True
+            assert favorites_store.is_favorite("fav1") is True
+            r = c.post("/favorite", json={"id": "fav1", "favorite": False})
+            assert r.get_json()["favorite"] is False
+            assert favorites_store.is_favorite("fav1") is False
+            r = c.post("/favorite", json={})
+            assert r.status_code == 400
+        finally:
+            config.OUTPUT_DIR = old_dir
+
+
+def test_favoritas_vao_para_o_topo():
+    import csv as _csv
+    import app as flask_app
+    old_dir, old_csv = config.OUTPUT_DIR, config.JOBS_CSV
+    with tempfile.TemporaryDirectory() as d:
+        config.OUTPUT_DIR = d
+        jobs_csv = os.path.join(d, "jobs.csv")
+        config.JOBS_CSV = jobs_csv
+        try:
+            with open(jobs_csv, "w", newline="", encoding="utf-8") as f:
+                w = _csv.DictWriter(f, fieldnames=["id", "title", "company", "location",
+                                                   "salary_min", "salary_max", "description",
+                                                   "redirect_url", "created", "first_seen", "last_seen"])
+                w.writeheader()
+                for i in ("aaa", "bbb", "ccc"):
+                    w.writerow({"id": i, "title": "Dev " + i, "company": "Acme",
+                                "location": "Remoto", "description": "", "redirect_url": "",
+                                "first_seen": "2026-07-20", "last_seen": "2026-07-20"})
+            favorites_store.set_favorite("ccc", True)  # última no CSV, mas favorita
+            html = flask_app.app.test_client().get("/").data.decode("utf-8")
+            # a favorita "ccc" deve aparecer ANTES de "aaa" no HTML (subiu ao topo)
+            assert html.index("Dev ccc") < html.index("Dev aaa")
+        finally:
+            config.OUTPUT_DIR, config.JOBS_CSV = old_dir, old_csv
 
 
 def test_index_separa_ativas_arquivadas_e_esconde_removidas():

@@ -25,6 +25,7 @@ import urllib.parse
 from flask import Flask, jsonify, request, send_from_directory
 
 import config
+import favorites_store
 import search_jobs as search_jobs_mod
 import send_application
 import status_store
@@ -91,6 +92,7 @@ def job_view(job: dict) -> dict:
         "applied_status": applied.get("status", ""),
         "applied_date": applied.get("data", ""),
         "applied_canal": applied.get("canal", ""),
+        "is_favorite": favorites_store.is_favorite(job.get("id", "")),
     }
 
 
@@ -153,6 +155,8 @@ def index():
             archived.append(j)  # já me candidatei -> arquivo
         else:
             active.append(j)
+    # favoritas primeiro no topo do ativo (mantém ordem original dentro de cada grupo)
+    active.sort(key=lambda j: not j["is_favorite"])
     return render_page(active, build_search_links(kw), archived=archived)
 
 
@@ -303,6 +307,23 @@ def delete():
     return jsonify(ok=True)
 
 
+@app.route("/favorite", methods=["POST"])
+def favorite():
+    """Marca/desmarca uma vaga como favorita (★). Independente do status de
+    candidatura — a vaga continua na lista, só sobe para o topo e ganha estrela."""
+    data = request.json or {}
+    jid = (data.get("id") or "").strip()
+    if not jid:
+        return jsonify(ok=False, error="Falta o id da vaga."), 400
+    fav = bool(data.get("favorite", True))
+    favorites_store.set_favorite(
+        jid, favorite=fav,
+        titulo=(data.get("title") or "").strip(),
+        empresa=(data.get("company") or "").strip(),
+    )
+    return jsonify(ok=True, favorite=fav)
+
+
 @app.route("/search", methods=["POST"])
 def search():
     """Roda a busca de vagas (Adzuna + fontes extras) e mescla no
@@ -375,9 +396,13 @@ def _row_html(j: dict, archived: bool = False) -> str:
                         f'Отметить как отправлено</button>')
     del_btn = (f'<button class="btn small del" title="Удалить вакансию из списка" '
                f'onclick="excluir(this,\'{tid}\',\'{title_attr}\',\'{company_attr}\')">✕ Удалить</button>')
+    fav = j.get("is_favorite")
+    star_btn = (f'<button class="star{" on" if fav else ""}" title="В избранное" '
+                f'onclick="toggleFav(this,\'{tid}\',\'{title_attr}\',\'{company_attr}\')">'
+                f'{"★" if fav else "☆"}</button>')
     return f"""
-        <tr data-id="{tid}" data-email="{'1' if j['email'] else '0'}">
-          <td>{checkbox}</td>
+        <tr data-id="{tid}" data-email="{'1' if j['email'] else '0'}" data-fav="{'1' if fav else '0'}">
+          <td>{star_btn}{checkbox}</td>
           <td><div class="title">{title_esc}</div>
               <div class="muted">{company_esc} · {html.escape(j["location"])}</div>
               {email_badge}{stale_badge}</td>
@@ -447,6 +472,9 @@ PAGE = """<!DOCTYPE html>
   .btn:disabled{opacity:.5;cursor:default}
   .btn.primary{background:#b4622b;border-color:#b4622b}
   .btn.del{border-color:#d9a3a3;color:#a33}
+  .star{background:none;border:none;cursor:pointer;font-size:20px;line-height:1;color:#c9b83a;padding:0 4px 0 0;vertical-align:middle}
+  .star.on{color:#e0a800}
+  .btn.active-filter{background:#e0a800;border-color:#e0a800;color:#fff}
   .archive{margin-top:18px;background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px 14px}
   .archive summary{cursor:pointer;font-weight:600;color:#555}
   .archive table{margin-top:10px}
@@ -481,6 +509,7 @@ PAGE = """<!DOCTYPE html>
     <label class="chk"><input type="checkbox" id="s_senior"> с senior</label>
     <label class="chk"><input type="checkbox" id="s_anyloc"> любая локация</label>
     <button class="btn ghost" onclick="location.reload()">↻ Обновить</button>
+    <button class="btn ghost" id="favFilter" onclick="filterFav(this)">★ Только избранное</button>
     <button class="btn primary" onclick="enviar()">Отправить выбранные (e-mail)</button>
     <span class="muted" id="selinfo">0 выбрано</span>
     <span id="log"></span>
@@ -558,6 +587,28 @@ async function gerarManual(){
 function removeRow(id){
   const row=document.querySelector('tr[data-id="'+id+'"]');
   if(row){row.style.transition='opacity .3s';row.style.opacity='0';setTimeout(()=>row.remove(),300);}
+}
+
+async function toggleFav(btn,id,title,company){
+  const on=btn.classList.contains('on');
+  try{
+    const r=await fetch('/favorite',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,title,company,favorite:!on})});
+    const d=await r.json();
+    if(d.ok){
+      btn.classList.toggle('on',d.favorite);btn.textContent=d.favorite?'★':'☆';
+      const row=btn.closest('tr');if(row)row.dataset.fav=d.favorite?'1':'0';
+    }else setLog('Ошибка: '+d.error);
+  }catch(e){setLog('Ошибка сети: '+e);}
+}
+
+let favOnly=false;
+function filterFav(btn){
+  favOnly=!favOnly;
+  btn.classList.toggle('active-filter',favOnly);
+  btn.textContent=favOnly?'★ Показать все':'★ Только избранное';
+  document.querySelectorAll('table tbody tr[data-id]').forEach(tr=>{
+    tr.style.display=(!favOnly||tr.dataset.fav==='1')?'':'none';
+  });
 }
 
 async function enviar(){
