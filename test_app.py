@@ -6,6 +6,8 @@ Rodar: python test_app.py
 import os
 import tempfile
 
+import config
+import status_store
 import tailor_resume
 import send_application
 
@@ -110,6 +112,138 @@ def test_manual_routes_validation():
     assert r.status_code == 400
     # o formulário manual aparece na home (rótulo agora em russo)
     assert "Вставить вакансию вручную".encode("utf-8") in c.get("/").data
+
+
+def test_mark_applied_route():
+    import app as flask_app
+    old_dir = config.OUTPUT_DIR
+    with tempfile.TemporaryDirectory() as d:
+        config.OUTPUT_DIR = d
+        try:
+            c = flask_app.app.test_client()
+            # marcar
+            r = c.post("/mark_applied",
+                       json={"id": "vaga-x", "title": "Dev", "company": "Acme", "applied": True})
+            assert r.status_code == 200 and r.get_json()["ok"] is True
+            assert status_store.get("vaga-x")["status"] == "candidatei manualmente"
+            # desmarcar
+            r = c.post("/mark_applied", json={"id": "vaga-x", "applied": False})
+            assert r.status_code == 200 and r.get_json()["ok"] is True
+            assert status_store.get("vaga-x") == {}
+            # sem id -> 400
+            r = c.post("/mark_applied", json={})
+            assert r.status_code == 400
+        finally:
+            config.OUTPUT_DIR = old_dir
+
+
+def test_job_view_reflete_status_de_candidatura():
+    import app as flask_app
+    old_dir = config.OUTPUT_DIR
+    with tempfile.TemporaryDirectory() as d:
+        config.OUTPUT_DIR = d
+        try:
+            status_store.set_status("vaga-y", titulo="Dev", empresa="Acme",
+                                     status="enviado", canal="email", contato="a@b.com")
+            job = {"id": "vaga-y", "title": "Dev", "company": "Acme",
+                   "location": "Remoto", "description": "", "redirect_url": ""}
+            view = flask_app.job_view(job)
+            assert view["applied_status"] == "enviado"
+            assert view["applied_canal"] == "email"
+        finally:
+            config.OUTPUT_DIR = old_dir
+
+
+def test_search_route_usa_busca_mockada():
+    import app as flask_app
+    # substitui a busca real (rede) por um mock, para testar só a rota
+    orig_search = flask_app.search_jobs_mod.search_jobs
+    orig_save = flask_app.search_jobs_mod.save_jobs_csv
+    calls = {}
+
+    def fake_search(keywords, filter_seniority=None, filter_location=None):
+        calls["keywords"] = keywords
+        calls["filter_seniority"] = filter_seniority
+        calls["filter_location"] = filter_location
+        return [{"id": "1"}, {"id": "2"}]
+
+    def fake_save(jobs, path=None):
+        return jobs  # já "mesclado"
+
+    flask_app.search_jobs_mod.search_jobs = fake_search
+    flask_app.search_jobs_mod.save_jobs_csv = fake_save
+    try:
+        c = flask_app.app.test_client()
+        r = c.post("/search", json={"keywords": "python dev",
+                                    "include_senior": True, "any_location": False})
+        d = r.get_json()
+        assert r.status_code == 200 and d["ok"] is True
+        assert d["found"] == 2 and d["total"] == 2
+        assert calls["keywords"] == "python dev"
+        # include_senior=True -> filter_seniority=False
+        assert calls["filter_seniority"] is False
+        # any_location=False -> filter_location=None (usa padrão)
+        assert calls["filter_location"] is None
+    finally:
+        flask_app.search_jobs_mod.search_jobs = orig_search
+        flask_app.search_jobs_mod.save_jobs_csv = orig_save
+
+
+def test_home_tem_controles_de_busca():
+    import app as flask_app
+    data = flask_app.app.test_client().get("/").data
+    assert "Запустить поиск".encode("utf-8") in data
+    assert "Обновить".encode("utf-8") in data
+
+
+def test_delete_route_esconde_vaga():
+    import app as flask_app
+    old_dir = config.OUTPUT_DIR
+    with tempfile.TemporaryDirectory() as d:
+        config.OUTPUT_DIR = d
+        try:
+            c = flask_app.app.test_client()
+            r = c.post("/delete", json={"id": "vaga-del", "title": "Dev", "company": "Acme"})
+            assert r.status_code == 200 and r.get_json()["ok"] is True
+            assert status_store.get("vaga-del")["status"] == "removido"
+            # sem id -> 400
+            r = c.post("/delete", json={})
+            assert r.status_code == 400
+        finally:
+            config.OUTPUT_DIR = old_dir
+
+
+def test_index_separa_ativas_arquivadas_e_esconde_removidas():
+    import csv as _csv
+    import app as flask_app
+    old_dir, old_csv = config.OUTPUT_DIR, config.JOBS_CSV
+    with tempfile.TemporaryDirectory() as d:
+        config.OUTPUT_DIR = d
+        jobs_csv = os.path.join(d, "jobs.csv")
+        config.JOBS_CSV = jobs_csv
+        try:
+            # 3 vagas no CSV
+            with open(jobs_csv, "w", newline="", encoding="utf-8") as f:
+                w = _csv.DictWriter(f, fieldnames=["id", "title", "company", "location",
+                                                   "salary_min", "salary_max", "description",
+                                                   "redirect_url", "created", "first_seen", "last_seen"])
+                w.writeheader()
+                for i in ("ativa", "arquiv", "removi"):
+                    w.writerow({"id": i, "title": "Dev " + i, "company": "Acme",
+                                "location": "Remoto", "description": "", "redirect_url": "",
+                                "first_seen": "2026-07-20", "last_seen": "2026-07-20"})
+            status_store.set_status("arquiv", status="candidatei manualmente", canal="manual")
+            status_store.set_status("removi", status="removido", canal="deleted")
+
+            html = flask_app.app.test_client().get("/").data.decode("utf-8")
+            # ativa aparece no corpo; removida não aparece de jeito nenhum
+            assert "Dev ativa" in html
+            assert "Dev removi" not in html
+            # arquivada aparece (dentro do bloco Архив)
+            assert "Dev arquiv" in html
+            assert "Архив".encode("utf-8").decode("utf-8") in html
+        finally:
+            config.OUTPUT_DIR, config.JOBS_CSV = old_dir, old_csv
 
 
 def _run():
