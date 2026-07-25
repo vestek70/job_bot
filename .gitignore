@@ -13,3 +13,9 @@ applications/
 # PT: seu currículo real com dados pessoais fica fora do repositório.
 # RU: твоё настоящее резюме с личными данными не попадает в репозиторий.
 base_resume.md
+
+# Drafts/marketing texts for the author's own use — not part of the project.
+# PT: rascunhos pessoais (posts, mensagens) — não fazem parte do projeto.
+# RU: личные черновики (посты, сообщения) — не часть проекта.
+LINKEDIN_POST.md
+WHATSAPP_MSG.md

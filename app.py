@@ -867,5 +867,6 @@ if __name__ == "__main__":
     # em outra porta se a 5000 estiver presa por um processo antigo do painel
     port = int(os.environ.get("PORT", "5000"))
     print(f"Painel em http://127.0.0.1:{port}  (Ctrl+C para parar)")
-    print("*** VERSAO NOVA: busca no painel + coluna Otklik + no-cache ***")
+    print("*** VERSAO NOVA: idioma PT/RU (botao no canto superior direito) + "
+          "favoritos + arquivo + no-cache ***")
     app.run(host="127.0.0.1", port=port, debug=False)
