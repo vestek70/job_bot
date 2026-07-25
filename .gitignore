@@ -7,3 +7,9 @@ venv/
 # Generated data — contains job search results and drafted resumes
 jobs_found.csv
 applications/
+
+# Your real resume with personal data (name, email, phone).
+# The repo ships only base_resume.example.md as a template.
+# PT: seu currículo real com dados pessoais fica fora do repositório.
+# RU: твоё настоящее резюме с личными данными не попадает в репозиторий.
+base_resume.md

@@ -111,8 +111,9 @@ def test_manual_routes_validation():
     r = c.post("/send_manual",
                json={"folder": "pasta-inexistente", "email": "x@y.com", "title": "t"})
     assert r.status_code == 400
-    # o formulário manual aparece na home (rótulo agora em russo)
-    assert "Вставить вакансию вручную".encode("utf-8") in c.get("/").data
+    # o formulário manual aparece na home (nos dois idiomas)
+    assert "Colar vaga manualmente" in c.get("/?lang=pt").data.decode("utf-8")
+    assert "Вставить вакансию вручную" in c.get("/?lang=ru").data.decode("utf-8")
 
 
 def test_mark_applied_route():
@@ -192,9 +193,30 @@ def test_search_route_usa_busca_mockada():
 
 def test_home_tem_controles_de_busca():
     import app as flask_app
-    data = flask_app.app.test_client().get("/").data
-    assert "Запустить поиск".encode("utf-8") in data
-    assert "Обновить".encode("utf-8") in data
+    c = flask_app.app.test_client()
+    # PT (padrão)
+    data = c.get("/?lang=pt").data.decode("utf-8")
+    assert "Buscar vagas" in data and "Atualizar" in data
+    # RU
+    data = c.get("/?lang=ru").data.decode("utf-8")
+    assert "Запустить поиск" in data and "Обновить" in data
+
+
+def test_troca_de_idioma():
+    """Painel bilíngue: ?lang=pt/ru troca os textos e o atributo lang do html."""
+    import app as flask_app
+    c = flask_app.app.test_client()
+    pt = c.get("/?lang=pt").data.decode("utf-8")
+    ru = c.get("/?lang=ru").data.decode("utf-8")
+    assert 'lang="pt"' in pt and 'lang="ru"' in ru
+    assert "Gerar currículo" in pt or "Nenhuma vaga ativa" in pt
+    assert "Создать резюме" in ru or "Нет активных вакансий" in ru
+    # nenhum placeholder {{...}} sobrando em nenhum idioma
+    import re
+    assert not re.findall(r"\{\{[A-Z_]+\}\}", pt)
+    assert not re.findall(r"\{\{[A-Z_]+\}\}", ru)
+    # idioma inválido cai para o padrão, sem quebrar
+    assert flask_app.app.test_client().get("/?lang=xx").status_code == 200
 
 
 def test_delete_route_esconde_vaga():
@@ -286,9 +308,9 @@ def test_index_separa_ativas_arquivadas_e_esconde_removidas():
             # ativa aparece no corpo; removida não aparece de jeito nenhum
             assert "Dev ativa" in html
             assert "Dev removi" not in html
-            # arquivada aparece (dentro do bloco Архив)
+            # arquivada aparece (dentro do bloco Arquivo/Архив)
             assert "Dev arquiv" in html
-            assert "Архив".encode("utf-8").decode("utf-8") in html
+            assert "Arquivo" in html or "Архив" in html
         finally:
             config.OUTPUT_DIR, config.JOBS_CSV = old_dir, old_csv
 

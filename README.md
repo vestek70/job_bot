@@ -1,410 +1,225 @@
-# Job Bot — поиск вакансий и адаптация резюме (Бразилия, IT/fullstack)
+**🇧🇷 Português** · [🇷🇺 Русский](README.ru.md)
 
-Полуавтоматический инструмент: ищет вакансии, готовит адаптированную версию резюме
-под каждую, но **ничего не отправляет без вашего подтверждения**.
+# Job Bot — busca de vagas e currículo sob medida (Brasil, TI/dev)
 
-## Как это работает
+Ferramenta **semiautomática** de busca de emprego: encontra vagas em 7 fontes,
+gera um currículo adaptado a cada vaga com IA e — só depois da sua confirmação —
+envia por e-mail. Painel local no navegador, em português ou russo.
 
-1. `search_jobs.py` — ищет вакансии через открытый API Adzuna (покрывает Бразилию:
-   поиск по вашему ключевому слову + широкий поиск `what_or` по многим dev-терминам
-   + усиленный локальный проход по Florianópolis) и дополнительно через Remotive,
-   Arbeitnow, RemoteOK, Jobicy и The Muse (`extra_sources.py`) — публичные API
-   удалённых вакансий, без логина и без ключа. Подробнее — раздел "Источники
-   вакансий" ниже.
-2. `tailor_resume.py` — берёт `base_resume.md` и через DeepSeek API (модель
-   `deepseek-v4-pro`) готовит версию, заточенную под конкретную вакансию (без
-   выдумывания опыта — только переформулировка и расстановка акцентов на реальных
-   фактах).
-3. Результаты складываются в `applications/<компания>_<вакансия>/` — там лежит
-   `resume.md` и `job_info.txt` со ссылкой на вакансию.
-4. Вы просматриваете `applications/index.csv`, открываете нужные вакансии и
-   откликаетесь вручную через сайт компании/площадки, либо (если в вакансии указан
-   email) используете `send_application.py` — он тоже спросит подтверждение перед
-   отправкой.
+> **Nada é enviado sem você clicar e confirmar.** Sem login automático em
+> plataformas, sem scraping, sem invenção de experiência no currículo.
+> Veja [Princípios de segurança](#princípios-de-segurança).
 
-## Источники вакансий
+---
 
-| Источник | Что покрывает | Нужен ключ? | Как выключить |
-|---|---|---|---|
-| Adzuna | Бразилия, агрегатор, офисные + удалённые. 3 прохода: ваш ключевик + широкий `what_or` (много dev-терминов) + усиленный локальный по Florianópolis | Да (`ADZUNA_APP_ID`/`ADZUNA_APP_KEY`) | всегда включён (обязательный) |
-| Remotive | Только удалённые, в основном на английском | Нет | `ENABLE_REMOTIVE=0` |
-| Arbeitnow | Удалённые (Европа + worldwide) | Нет | `ENABLE_ARBEITNOW=0` |
-| RemoteOK | Удалённые, в основном на английском | Нет | `ENABLE_REMOTEOK=0` |
-| Jobicy | Удалённые dev-вакансии | Нет | `ENABLE_JOBICY=0` |
-| The Muse | Software Engineering, фильтр по Бразилии/удалёнке; даёт и офисные в Бразилии | Нет | `ENABLE_THEMUSE=0` |
-| Jooble | Агрегатор с охватом Бразилии (легальный API, НЕ скрапинг). Запросы к нему идут по-английски + `location=Brazil` (см. ниже) | Да, бесплатный (`JOOBLE_API_KEY`, https://jooble.org/api/about) | `ENABLE_JOOBLE=0` или пустой ключ |
+## O que ele faz
 
-### Фильтр релевантности (только dev-вакансии)
+1. **Busca vagas** em 7 fontes públicas (Adzuna, Remotive, Arbeitnow, RemoteOK,
+   Jobicy, The Muse, Jooble) — sem login, só APIs públicas.
+2. **Filtra** o que não serve: fora de desenvolvimento, acima do seu nível,
+   presencial em outra cidade, ou "remoto" preso a outro país.
+3. **Gera um currículo sob medida** para a vaga que VOCÊ escolher, usando IA
+   (DeepSeek) — em PDF e Markdown, formatado para ATS.
+4. **Acompanha suas candidaturas**: favoritas (★), arquivo de vagas em que já
+   se candidatou, e exclusão das que não interessam.
+5. **Envia por e-mail** (opcional) as vagas que trazem e-mail de contato —
+   sempre com confirmação explícita.
 
-Широкий поиск даёт много мусора не по разработке (нутрициология, телеком,
-ресепшн, техподдержка, HR и т.п.), особенно из широкого прохода Adzuna и
-англоязычных досок. Поэтому ко **всем** вакансиям из **всех** источников
-применяется финальный фильтр релевантности по названию: остаётся только то,
-что похоже на разработку (`RELEVANCE_KEYWORDS` в `config.py` — fullstack,
-backend, frontend, react, node, python, php, laravel, java, ruby, .NET,
-"desenvolvedor", "programador", "software engineer/developer", "analista de
-sistemas" и т.д.). Список переопределяется через `RELEVANCE_KEYWORDS` в `.env`
-(термины через запятую) — если видишь, что режет нужное или пропускает лишнее,
-подстрой под свой стек. На реальном прогоне это отсекает ~2/3 шума (в одном
-тесте 52 → 17 чистых dev-вакансий).
+## O currículo é adaptado, não inventado
 
-Термины — это регэкспы: точки экранируются (`\.net` ловит ".NET", но не
-"internet"), у коротких слов границы (`\breact\b`, чтобы не ловить "reaction").
-Jooble под фильтр не подпадает по смыслу, но проходит его тоже (его вакансии
-уже dev по запросу).
+Esta é a parte central. O bot lê `base_resume.md` (seus fatos reais) e a
+descrição da vaga, e reescreve o currículo para aquela vaga específica:
 
-**Jobicy и The Muse не были проверены вживую** (сеть к их доменам недоступна из
-песочницы разработки, как и у остальных доп. источников) — логика парсинга
-покрыта тестами на данных в задокументированном формате API, но реальный формат
-стоит перепроверить при первом запуске. Если формат изменился — скрипт не
-упадёт, просто выдаст `AVISO:` и 0 вакансий с этого источника (то же верно для
-RemoteOK).
+- **Espelha o vocabulário da vaga** para passar em triagem por ATS/IA: se a vaga
+  diz "Postgres" e você escreveu "PostgreSQL", ele alinha a escrita; se pede
+  "REST APIs", usa esse termo — mas **só para o que você realmente tem**.
+- **Adapta o ângulo**: vaga de back-end → destaca banco/APIs/segurança; de
+  front-end → React/JavaScript/PWA.
+- **Coloca as palavras-chave relevantes no topo** (resumo + habilidades), onde
+  o ATS dá mais peso.
+- **Nunca inventa** tecnologia, empresa, cargo ou certificação que não esteja no
+  seu `base_resume.md`. Se a vaga pede algo que você não tem, ele não afirma que
+  você tem.
 
-Jooble — легальный агрегатор (не скрапинг): собирает вакансии с разных
-бразильских сайтов и отдаёт через официальный API. Нужен бесплатный ключ
-(`JOOBLE_API_KEY` в `.env`). **Важная особенность этого API:** на бесплатном
-тарифе он отвечает на английские запросы и `location=Brazil` (по-английски), а
-на португальские (`desenvolvedor` / `Brasil`) возвращает 0 — проверено. Поэтому
-бот шлёт ему английские ключевые слова (`developer`, `fullstack developer`,
-`software engineer` и т.д.) с `location=Brazil`, а твой фильтр локации/
-релевантности потом отбирает бразильские/удалённые. Настраивается через
-`JOOBLE_QUERIES` и `JOOBLE_LOCATION` в `.env`. Если Jooble даёт 0 — либо ключ
-ещё активируется (несколько часов после регистрации), либо подстрой эти два
-параметра.
+## Instalação
 
-Gupy/Catho/InfoJobs/LinkedIn напрямую **не подключены** — у них нет публичного
-API без логина для частного использования, а скрапинг их страниц (в т.ч. через
-сторонние сервисы вроде Apify) нарушает их условия использования и отклонён
-(решения от 22.07.2026, зафиксировано в `PROGRESS_LOG.md`). Важно: часть их
-вакансий всё равно доступна легально через агрегатор Jooble выше. Логин/
-автоматизация на этих площадках остаётся вне скоупа по принципу проекта
-(см. `SECURITY_REVIEW.md`).
+Requisitos: Python 3.10+.
 
-## Почему вакансий всё ещё может быть мало
-
-Осталось два фильтра по умолчанию: уровень (junior/pleno) и локация
-(Florianópolis или удалённо) — оба сокращают список. Это осознанно: сеньорские
-вакансии и офис в другом городе тебе не подходят. В конкретный день всё равно
-возможно получить мало совпадений — площадки обновляются со временем.
-
-Что уже сделано, чтобы получать максимум:
-- 7 источников вместо одного (Adzuna + Remotive/Arbeitnow/RemoteOK/Jobicy/
-  The Muse/Jooble). Jooble — агрегатор с лучшим охватом Бразилии (нужен
-  бесплатный ключ).
-- Adzuna ищет тремя проходами: твой ключевик, широкий `what_or` по многим
-  dev-терминам (backend/frontend/react/python/...), и отдельный локальный
-  проход по Florianópolis.
-- Фильтр релевантности удалённых источников расширен с "fullstack" до широкого
-  набора dev-терминов — теперь ловит backend/frontend/react/python и т.д.
-- Из ключевого слова по умолчанию убрано "junior" (сужало поиск Adzuna).
-
-Что ещё можно подкрутить:
-- Запускать почаще — новые вакансии появляются постепенно.
-- Увеличить `MAX_PAGES` в `config.py` (сейчас 3).
-- Расширить `ADZUNA_BROAD_OR` / `RELEVANCE_KEYWORDS` в `.env` под свой стек.
-- Временно снять фильтры (`--include-senior`, `--any-location`) — увидеть весь
-  объём до фильтрации.
-
-## Почему нет полностью автоматической отправки
-
-LinkedIn, Gupy, Catho, InfoJobs и большинство площадок в Бразилии не дают открытого
-API для отклика от лица пользователя и прямо запрещают автоматизацию в условиях
-использования — риск блокировки аккаунта. Поэтому отклик через эти площадки нужно
-подтверждать вручную (открыть ссылку → загрузить готовый файл резюме). Email-рассылка
-доступна только когда в вакансии есть прямой контактный email.
-
-## Настройка
-
-### 1. Установить зависимости
 ```bash
-pip install -r requirements.txt --break-system-packages
+git clone https://github.com/vestek70/job_bot.git
+cd job_bot
+pip install -r requirements.txt
 ```
 
-### 2. Получить ключи Adzuna (бесплатно)
-Зарегистрируйтесь на https://developer.adzuna.com/signup — вы получите `app_id` и
-`app_key`. Бесплатного тарифа достаточно для личного использования.
+### 1. Crie o seu currículo base
 
-### 3. Получить ключ DeepSeek API
-На https://platform.deepseek.com/api_keys — нужен для адаптации резюме под вакансии.
-Модель `deepseek-v4-pro` заметно дешевле аналогов (~$0.002 за одно резюме), но
-требует предоплаченного баланса на платформе.
-
-### 3a. (Рекомендуется) Получить ключ Jooble
-На https://jooble.org/api/about — бесплатный API-ключ агрегатора. Даёт лучший
-охват по Бразилии/Флорианополису. Без ключа источник просто не активен.
-
-### 4. (Опционально) Настроить Gmail для отправки
-Если хотите использовать `send_application.py` — создайте "пароль приложения" на
-https://myaccount.google.com/apppasswords для аккаунта vestek70@gmail.com.
-
-### 5. Задать ключи
-Проще всего — открыть файл `.env` (уже создан, в `.gitignore`, в репозиторий не
-попадёт) и вписать значения:
-```
-ADZUNA_APP_ID=ваш_app_id
-ADZUNA_APP_KEY=ваш_app_key
-DEEPSEEK_API_KEY=ваш_ключ
-JOOBLE_API_KEY=ваш_ключ_jooble          # рекомендуется, охват по Бразилии
-GMAIL_APP_PASSWORD=пароль_приложения   # опционально
-```
-`config.py` подхватит их автоматически через `python-dotenv` (уже в
-`requirements.txt`). Альтернатива — переменные окружения в шелле:
 ```bash
-export ADZUNA_APP_ID="ваш_app_id"
-export ADZUNA_APP_KEY="ваш_app_key"
-export DEEPSEEK_API_KEY="ваш_ключ"
+cp base_resume.example.md base_resume.md   # Windows: copy base_resume.example.md base_resume.md
 ```
 
-## Запуск (новый процесс: поиск → выбор в панели → резюме → отправка)
+Abra `base_resume.md` e preencha com os **seus** dados reais. Este arquivo é a
+única fonte de fatos do bot — quanto mais concreto (números, resultados,
+tecnologias), melhor o resultado. Ele está no `.gitignore`: seus dados pessoais
+não vão para o repositório.
 
-Резюме больше НЕ генерируются автоматически для всех вакансий. Теперь ты сам
-выбираешь нужные в панели, и только под них делается резюме — это экономит
-вызовы DeepSeek и убирает мусорные резюме.
+### 2. Configure as chaves
 
-**Шаг 1 — поиск.** Находит вакансии и сохраняет в `jobs_found.csv` (без
-генерации резюме):
-```bash
-python main.py "desenvolvedor fullstack"
+Crie um arquivo `.env` na raiz do projeto:
+
+```ini
+# Busca de vagas (obrigatório) — cadastro gratuito
+ADZUNA_APP_ID=seu_app_id
+ADZUNA_APP_KEY=sua_app_key
+
+# Geração de currículo com IA (obrigatório para gerar currículos)
+DEEPSEEK_API_KEY=sua_chave
+
+# Fonte extra de vagas (opcional, gratuito)
+JOOBLE_API_KEY=sua_chave
+
+# Envio por e-mail (opcional)
+GMAIL_ADDRESS=seu-email@gmail.com
+GMAIL_APP_PASSWORD=sua_senha_de_app
+
+# Preferências (opcional)
+HOME_CITY=Florianópolis
+SEARCH_KEYWORDS=desenvolvedor fullstack
+UI_LANG=pt          # idioma do painel: pt ou ru
 ```
 
-**Шаг 2 — панель.** Запусти локальное приложение и открой его в браузере:
+Onde conseguir cada chave (todas têm plano gratuito):
+
+| Chave | Onde | Obrigatória? |
+|---|---|---|
+| `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` | https://developer.adzuna.com/signup | Sim (busca) |
+| `DEEPSEEK_API_KEY` | https://platform.deepseek.com/api_keys | Sim (currículo) |
+| `JOOBLE_API_KEY` | https://jooble.org/api/about | Não |
+| `GMAIL_APP_PASSWORD` | https://myaccount.google.com/apppasswords | Não (só p/ envio) |
+
+> **Senha de app do Gmail**: é uma senha específica para aplicativos, não a sua
+> senha normal. Exige verificação em duas etapas ativada. O `.env` está no
+> `.gitignore` — nunca comite suas chaves.
+
+## Uso
+
 ```bash
 python app.py
 ```
-Открой `http://127.0.0.1:5000` (интерфейс на русском). Вверху — панель
-управления, чтобы не лазить в терминал:
 
-- **🔍 Запустить поиск** — прямо из браузера запускает поиск вакансий (то же,
-  что `python main.py`). Можно вписать ключевые слова в поле рядом; галочки
-  «с senior» / «любая локация» = флаги `--include-senior` / `--any-location`.
-  Идёт несколько секунд (обращается к источникам), потом страница обновится.
-- **↻ Обновить** — перечитать список (например, после ручного запуска поиска
-  в терминале).
+Abra `http://127.0.0.1:5000` no navegador. Tudo é feito por ali:
 
-Ниже — таблица всех найденных вакансий. По каждой:
+- **🔍 Buscar vagas** — roda a busca nas 7 fontes (pode digitar palavras-chave e
+  marcar "incluir sênior" / "qualquer localização").
+- **Gerar currículo** — cria o currículo sob medida para aquela vaga (~30s).
+- **Abrir PDF** — vê o resultado.
+- **★** — favorita a vaga (sobe para o topo; filtro "Só favoritas" no topo).
+- **Marcar como enviada** — a vaga vai para o **📁 Arquivo** (para vagas em que
+  você se candidatou pelo site).
+- **✕ Excluir** — some da lista e não volta nem em buscas futuras.
+- **Enviar selecionadas (e-mail)** — só para vagas com e-mail de contato; pede
+  confirmação antes de enviar de verdade.
+- **PT / RU** (canto superior direito) — troca o idioma do painel.
 
-- **«Создать резюме»** — делает резюме (и PDF) именно под эту вакансию, по
-  запросу. Занимает ~полминуты (вызов DeepSeek).
-- **«Открыть вакансию»** — открывает страницу вакансии, чтобы откликнуться вручную.
-- **«Открыть PDF»** — показывает готовое резюме.
-- **Столбец «Отклик»** — трекинг «уже откликался»: для вакансий, отправленных
-  ботом по email, отмечается автоматически (✅ отправлено + дата). Для вакансий
-  с площадок (где откликаешься сам на сайте) — жми **«Отметить как
-  отправлено»** после того как откликнулся.
-- **★ Избранное.** Звёздочка слева от каждой вакансии — добавить в избранное.
-  Избранные всплывают наверх списка. Кнопка **«★ Только избранное»** вверху
-  показывает лишь их. Метка сохраняется (`applications/favorites.csv`),
-  переживает новый поиск и перезапуск.
-- **Архив.** Как только вакансия отмечена как отклик (вручную или после
-  email-отправки), она уходит из активного списка в блок **«📁 Архив»** внизу
-  страницы — чтобы активный список оставался только из тех, с кем ещё не
-  работал. В архиве у каждой есть кнопка **«вернуть»** (снять отметку и вернуть
-  в активные).
-- **✕ Удалить.** Неподходящую вакансию можно убрать из списка кнопкой
-  «✕ Удалить». Удалённая не появляется снова даже после нового поиска (помечена
-  в `applications/status.csv`). Чтобы вернуть — удали её строку из этого файла.
-- **Галочка** есть только у вакансий с прямым email-контактом. Отметь нужные и
-  нажми **«Отправить выбранные (e-mail)»** — приложение отправит твоё резюме на
-  эти адреса. Перед отправкой спросит подтверждение — без клика ничего не
-  уходит.
+### Colar uma vaga manualmente
 
-**Вакансии между запусками.** `jobs_found.csv` больше не перезаписывается
-начисто при каждом `python main.py` — новый поиск ДОПОЛНЯЕТ список: новые
-вакансии добавляются, уже виденные обновляются (свежий текст, `last_seen` =
-сегодня), а те, что пропали из выдачи, остаются в списке (со статусом и
-резюме) и в панели помечаются бейджем «⚠ не в последнем поиске» — так ты не
-теряешь вакансию, на которую уже откликнулся, только потому что она
-временно не попала в топ выдачи очередного поиска. Если вакансия не
-появляется ни в одном поиске дольше `STALE_JOB_DROP_DAYS` дней (по умолчанию
-45 — настраивается в `.env`), она считается закрытой и убирается сама.
+Achou uma vaga no Vagas.com, Gupy, Catho ou LinkedIn? Essas plataformas não têm
+API pública, e fazer scraping violaria os termos de uso delas. Então:
 
-**Ручной поиск на площадках (Vagas.com/Gupy/Catho/InfoJobs/LinkedIn).** Вверху
-панели есть блок «Искать вручную» — кнопки, которые открывают страницу
-поиска на этих площадках с уже подставленными критериями (твои ключевые слова +
-Флорианополис). Это НЕ скрапинг: просто открывает их сайт в браузере, ты
-смотришь и откликаешься там сам. У этих площадок нет публичного API для
-выгрузки вакансий, поэтому автоматически тянуть их нельзя (нарушение ToS), но
-через агрегаторы Adzuna/Jooble часть их вакансий и так попадает в общий список.
+1. Abra a vaga no site (há botões de busca prontos no painel).
+2. Copie o texto da vaga.
+3. Cole no bloco **"➕ Colar vaga manualmente"** e clique em gerar.
 
-**Вставить вакансию вручную (для площадок).** В панели есть раскрывающийся блок
-«➕ Вставить вакансию вручную». Нашёл вакансию на Vagas.com/Gupy/LinkedIn — скопируй
-её текст (описание/требования), вставь в поле, укажи название, нажми «Создать
-резюме под эту вакансию». Бот сделает резюме и PDF именно под неё. Если в тексте
-есть email — появится кнопка отправки. Это легально: браузишь и копируешь ты сам,
-бот только адаптирует резюме (ничего не качается с сайта).
+O bot cria o currículo sob medida sem tocar no site — você navega e copia, ele
+só adapta.
 
-**Что важно понимать про отправку:** автоматически можно отправить только
-вакансии, где в описании есть email-контакт (у них есть галочка). Вакансии с
-площадок (Adzuna/LinkedIn/Gupy/Catho) отклика по email не принимают — там
-кнопка «Открыть вакансию» ведёт на сайт, где надо откликнуться самому. Это
-осознанное ограничение: логин и автозаполнение форм на площадках нарушают их
-правила и грозят баном (см. `SECURITY_REVIEW.md`).
-
-Для email-отправки нужен «пароль приложения» Gmail в `.env`
-(`GMAIL_APP_PASSWORD`, см. шаг 4 настройки).
-
-### Очистка старых резюме
-
-Папка `applications/` (сгенерированные резюме) не чистится сама — растёт с
-каждой новой вакансией. Раз в месяц-два можно почистить старые:
-```bash
-python clean_applications.py                  # только показать, что попадёт под удаление (30 дней)
-python clean_applications.py --days 45 --apply # удалить по-настоящему (спросит подтверждение)
-```
-По умолчанию ничего не удаляется без явного `--apply`.
-
-### Ручная отправка одной вакансии (без панели)
-
-Можно и по-старому, из терминала:
-```bash
-python send_application.py applications/empresa_vaga_123 email@empresa.com applications/empresa_vaga_123/resume.pdf
-```
-Скрипт покажет тему/вложение и спросит подтверждение.
-
-### Старая статичная панель (`dashboard.py`)
-
-Осталась для совместимости: `python dashboard.py` генерирует
-`applications/dashboard.html` — статичную страницу-обзор уже сгенерированных
-резюме (без кнопок-действий). Основной путь теперь — интерактивное `app.py`.
-
-### Сгенерировать резюме сразу для всех (старое поведение)
-
-Если очень нужно (тратит DeepSeek на все вакансии):
-```bash
-python main.py "desenvolvedor fullstack" --tailor-all
-python main.py "desenvolvedor fullstack" --tailor-all --force   # + перегенерация
-```
-
-### Регенерация резюме (`--force`)
-
-По умолчанию `tailor_resume.py` не трогает вакансию, если для неё уже есть
-`resume.md` — экономит вызовы DeepSeek API. Из-за этого, если вы поменяли
-`base_resume.md` (например, добавили фамилию) уже после того, как резюме под
-конкретную вакансию было сгенерировано, старый файл сам не обновится. Чтобы
-пересобрать всё заново:
-```bash
-python main.py "desenvolvedor fullstack" --force
-```
-
-### Фильтр по уровню (junior/pleno)
-
-По умолчанию отсеиваются вакансии уровня выше pleno (в названии — senior, sênior,
-lead, especialista, arquiteto, gerente и т.п.; либо в описании требуется ≥5 лет
-опыта). Чтобы НЕ отсеивать сеньорские — добавьте флаг:
-```bash
-python main.py "desenvolvedor fullstack" --include-senior
-```
-Логика в `filters.py`, покрыта тестами: `python test_filters.py`.
-
-### Фильтр по локации (только Florianópolis или удалённо)
-
-Правило: **офис — только Флорианополис; удалёнка — откуда угодно (доступная
-из Бразилии).** Остаётся только вакансия в Florianópolis (в любом формате —
-офис/гибрид/удалёнка) ИЛИ полностью удалённая. Отсеивается:
-
-- офис в другом городе Бразилии (São Paulo и т.п.);
-- **гибрид** в другом городе — «híbrido: 3 дня офис / 2 дня дом» и т.п. Такие
-  раньше просачивались, потому что в описании есть слово «remoto», но по факту
-  надо ездить в офис в другом городе. Теперь распознаётся и отсеивается (в
-  Флорианополисе гибрид остаётся — ты там живёшь);
-- удалёнка, **привязанная к другой стране** (`Remoto (Berlin)`, `Remoto
-  (México)`, India-only) с международных досок — чужой язык + гео-ограничение.
-  Остаётся только Бразилия или реально глобальный remote (worldwide/anywhere/
-  flexible/LatAm). Вакансии Adzuna и Jooble считаются бразильскими (это API
-  Бразилии), к ним гео-проверка не применяется.
-
-Изменить город — переменная `HOME_CITY` в `.env`. Чтобы временно посмотреть
-вообще все вакансии независимо от локации:
-```bash
-python main.py "desenvolvedor fullstack" --any-location
-```
-Логика в `filters.py` (`is_local_or_remote`/`filter_out_non_local`), покрыта
-тестами: `python test_filters.py`.
-
-**Важно:** этот фильтр в сочетании с фильтром по уровню и тем, что вакансии
-ищутся только через Adzuna (см. ниже "Почему вакансий мало"), может давать 0
-результатов за прогон при узком ключевом слове — это ожидаемо, не баг.
-
-### Экспорт в PDF
-
-Автоматически включён (`EXPORT_PDF=1`). Использует `markdown` + `xhtml2pdf` (чистый
-Python, ставятся из `requirements.txt`, работают на Windows без внешних бинарников).
-Отключить: `EXPORT_PDF=0` в `.env`.
-
-## Доп. источник вакансий: ai-dev-jobs-mcp (опционально, для AI/ML-ролей)
-
-Если ищете именно AI/ML-вакансии (не общий fullstack), можно подключить бесплатный
-MCP-сервер `ai-dev-jobs-mcp` прямо к AI-агенту в VS Code (не к Python-скриптам —
-это read-only MCP-сервер, не REST API, поэтому он не встроен в `search_jobs.py`).
-Не требует ключей:
+### Pela linha de comando (opcional)
 
 ```bash
-claude mcp add --transport http ai-dev-jobs https://aidevboard.com/mcp
+python main.py "desenvolvedor fullstack"        # só busca, salva em jobs_found.csv
+python main.py "python" --include-senior        # inclui vagas sênior
+python main.py "dev" --any-location             # sem filtro de localização
+python clean_applications.py --days 45 --apply  # limpa currículos antigos
 ```
 
-Остальные инструменты из каталога "Agentic Awesome Skills" (`mcp skills/`) сознательно
-не подключены — см. `SECURITY_REVIEW.md` в этой папке, там разбор по каждому и почему.
+## Fontes de vagas
 
-## Подключение к GitHub (github.com/vestek70/job_bot)
-
-**Готово, кроме пуша.** Проблема с сетевым mount из прошлой сессии решена — git
-теперь работает нормально. Репозиторий уже инициализирован, сделан первый коммит,
-и добавлен remote `origin` → `https://github.com/vestek70/job_bot.git`. `.env`
-защищён `.gitignore` и в коммит не попал.
-
-Осталось только запушить. Сделайте это **из терминала VS Code на вашем компьютере**,
-не через меня: так GitHub-авторизация пройдёт через браузер безопасно, без передачи
-токена в чат:
-
-```bash
-git push -u origin main
-```
-
-Git запросит авторизацию в GitHub (через браузер или Git Credential Manager,
-обычно уже настроен в VS Code) — просто следуйте подсказке. Если remote вдруг не
-настроен (`git remote -v` пустой), добавьте его:
-```bash
-git remote add origin https://github.com/vestek70/job_bot.git
-```
-
-### Какие MCP реально нужны для этого проекта
-
-Сравнил с рабочим `.mcp.json`/`.kilo/kilo.jsonc` из вашего проекта `D:\PLATFORMA 5`
-(там 9 серверов — filesystem, sequential-thinking, brave-search, github-mcp-server,
-supabase-mcp-server, gcp/gmp-code-assist, floripa-portuguese, context7, gsc). Для
-`job_bot` большинство из них не нужны — они завязаны на тот конкретный проект
-(Google Search Console для albinaborisova.com.br, кастомный MCP-сервер
-floripa-portuguese и т.д.). Реально полезны только два, и я уже подготовил для них
-`.mcp.json` в этой папке:
-
-| MCP | Зачем | Нужен ключ? |
+| Fonte | Cobertura | Chave |
 |---|---|---|
-| **github-mcp-server** | Управлять репозиторием `job_bot` прямо из агента (коммиты, issues, PR) без ручных git-команд | Да — `GITHUB_PERSONAL_ACCESS_TOKEN` (создать: github.com → Settings → Developer settings → Personal access tokens, права: `repo`) |
-| **context7** | Актуальная документация библиотек (requests, anthropic SDK и т.д.) прямо во время работы агента в VS Code | Нет |
+| **Adzuna** | Brasil (3 passadas: sua palavra-chave, busca ampla, reforço local) | Sim |
+| **Jooble** | Agregador, Brasil | Sim (grátis) |
+| **Remotive** | Remoto internacional | Não |
+| **Arbeitnow** | Remoto internacional | Não |
+| **RemoteOK** | Remoto internacional | Não |
+| **Jobicy** | Remoto internacional | Não |
+| **The Muse** | Brasil + remoto | Não |
 
-Остальные из конфига `PLATFORMA 5` — **не нужны** для `job_bot`:
-- `filesystem` — не нужен, VS Code/Claude Code уже имеет доступ к диску напрямую.
-- `supabase-mcp-server` — пригодится, только если решите хранить историю вакансий
-  в базе вместо CSV (backlog P2 в `SPEC.md`) — пока не требуется.
-- `sequential-thinking`, `gcp-code-assist`/`gmp-code-assist`, `gsc`,
-  `floripa-portuguese` — специфичны для проекта Albina Borisova, к `job_bot`
-  отношения не имеют.
+Vagas duplicadas entre fontes são unificadas. O `jobs_found.csv` **acumula**
+entre buscas: vagas já vistas mantêm histórico e currículo; as que somem da
+busca ficam marcadas como "fora da última busca" e só são descartadas após
+`STALE_JOB_DROP_DAYS` dias (padrão: 45).
 
-Чтобы подключить `github-mcp-server`, задайте токен переменной окружения (в `.env`
-или в шелле) и подключите через Claude Code:
-```bash
-claude mcp add-json github-mcp-server '{"type":"http","url":"https://api.githubcopilot.com/mcp/","headers":{"Authorization":"Bearer '"$GITHUB_PERSONAL_ACCESS_TOKEN"'"}}'
+## Filtros
+
+Três filtros rodam em sequência (todos ajustáveis pelo `.env`):
+
+1. **Relevância** — mantém só vagas de desenvolvimento (`RELEVANCE_KEYWORDS`).
+2. **Senioridade** — descarta sênior/lead/gestão (desligue com `--include-senior`).
+3. **Localização** — mantém vagas na sua cidade (`HOME_CITY`) **ou** remotas de
+   verdade. Vagas híbridas em outra cidade contam como presenciais e são
+   descartadas; vagas "remotas" presas a outro país (ex.: "Remote (Berlin)")
+   também. Desligue com `--any-location`.
+
+## Princípios de segurança
+
+Decisões deliberadas do projeto — veja `SECURITY_REVIEW.md`:
+
+- **Sem login ou automação em plataformas de emprego.** Nada de Selenium
+  logando no LinkedIn/Gupy/Catho. Isso viola os termos de uso delas.
+- **Sem scraping.** Só APIs públicas e oficiais. Para plataformas sem API, o
+  bot abre a busca no site para você navegar, ou você cola o texto da vaga.
+- **Nenhum envio sem confirmação.** Não existe modo "candidatar-se
+  automaticamente a tudo".
+- **Sem invenção no currículo.** O prompt proíbe explicitamente adicionar
+  tecnologias, empresas ou experiências que não estejam no seu currículo base.
+- **Roda só localmente** (`127.0.0.1`) — nada é exposto para a internet.
+- **Seus dados ficam com você**: `.env`, `base_resume.md`, `jobs_found.csv` e
+  `applications/` estão todos no `.gitignore`.
+
+## Estrutura
+
 ```
-Или просто используйте уже созданный `.mcp.json` в этой папке — Claude Code подхватит
-его автоматически при открытии проекта, если переменная `GITHUB_PERSONAL_ACCESS_TOKEN`
-задана в окружении.
+app.py                  painel web local (Flask, bilíngue PT/RU)
+main.py                 busca pela linha de comando
+search_jobs.py          Adzuna + merge do jobs_found.csv
+extra_sources.py        as 6 fontes extras
+filters.py              relevância, senioridade, localização
+tailor_resume.py        geração do currículo com IA (prompt anti-invenção + ATS)
+send_application.py     envio por e-mail (SMTP)
+status_store.py         status de candidatura (arquivo/excluídas)
+favorites_store.py      vagas favoritas (★)
+clean_applications.py   limpeza de currículos antigos
+export_pdf.py           Markdown → PDF
+config.py               configuração via .env
+test_*.py               testes (rodam offline, sem rede)
+base_resume.example.md  modelo do currículo base
+```
 
-## Важно перед использованием
+Testes:
 
-- **Перед первым запуском обязательно допишите `base_resume.md`** — там два плейсхолдера
-  ([PLACEHOLDER: ...]) для проекта SkillMeth и точного уровня португальского.
-- Проверяйте каждое сгенерированное резюме перед отправкой — модель не выдумывает
-  опыт по инструкции, но лучше перепроверить самостоятельно.
-- Меняйте `SEARCH_KEYWORDS` (в `config.py` или как аргумент к `main.py`) под разные
-  формулировки: "desenvolvedor fullstack", "desenvolvedor junior", "programador
-  full stack" и т.д. — на бразильском рынке используются разные термины.
+```bash
+python test_filters.py && python test_app.py && python test_search_jobs.py
+```
+
+## Limitações conhecidas
+
+- O volume de vagas depende do seu nicho. Filtros rigorosos (júnior/pleno +
+  cidade específica) podem render poucas vagas novas por dia — isso é o mercado,
+  não um bug.
+- Plataformas brasileiras (Vagas.com, Gupy, Catho, InfoJobs) não têm API pública
+  e não são raspadas por decisão de projeto; use o fluxo de colar manualmente.
+- A qualidade do currículo depende da qualidade do seu `base_resume.md`.
+  **Sempre revise o PDF antes de enviar.**
+
+## Licença
+
+MIT — use, modifique e adapte à sua busca de emprego.

@@ -232,8 +232,8 @@ last 1-2 entries before starting work, to know what's already done.
 - [ ] Lightweight status tracker on top of `applications/index.csv` (statuses:
       found → resume ready → applied → response received), updated manually or
       via a small CLI command.
-- [ ] Self-notification email (to vestek70@gmail.com) about new jobs after each
-      run, instead of checking files by hand.
+- [ ] Self-notification email (to the address in GMAIL_ADDRESS) about new jobs
+      after each run, instead of checking files by hand.
 
 ## 6. Definition of Done for MVP
 

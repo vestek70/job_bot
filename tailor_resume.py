@@ -149,6 +149,14 @@ def load_jobs(path: str = None) -> list:
 
 
 def load_base_resume(path: str = "base_resume.md") -> str:
+    if not os.path.exists(path):
+        raise RuntimeError(
+            f"{path} não encontrado / не найден.\n"
+            "PT: copie base_resume.example.md para base_resume.md e preencha "
+            "com os SEUS dados reais (é a única fonte de fatos do bot).\n"
+            "RU: скопируй base_resume.example.md в base_resume.md и заполни "
+            "СВОИМИ реальными данными (это единственный источник фактов для бота)."
+        )
     with open(path, encoding="utf-8") as f:
         return f.read()
 

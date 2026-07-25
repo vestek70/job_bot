@@ -32,7 +32,7 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com/anthropic"
 TAILOR_MODEL = "deepseek-v4-pro"
 
 # --- Gmail (envio opcional, só quando há e-mail direto de contato) ---
-GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS", "vestek70@gmail.com")
+GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS")
 GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD")
 
 # --- Busca ---
@@ -148,3 +148,9 @@ STALE_JOB_DROP_DAYS = int(os.environ.get("STALE_JOB_DROP_DAYS", "45"))
 
 # Gerar também um resume.pdf ao lado de cada resume.md (precisa de markdown+xhtml2pdf).
 EXPORT_PDF = os.environ.get("EXPORT_PDF", "1") not in ("0", "false", "")
+
+# --- Idioma do painel / Язык панели ---
+# "pt" (português) ou "ru" (русский). Pode ser trocado a qualquer momento pelo
+# botão PT/RU no painel (fica salvo num cookie). / Можно переключить кнопкой
+# PT/RU в панели (сохраняется в cookie).
+UI_LANG = os.environ.get("UI_LANG", "pt").lower()
