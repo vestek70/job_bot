@@ -1,80 +1,81 @@
 # Post para o LinkedIn (PT-BR)
 
-> Copie o texto abaixo. Ajuste o que quiser antes de publicar.
-> Lembre-se de trocar o link se o repositório mudar de nome.
+> Copie o texto entre as linhas. Ajuste o que quiser antes de publicar.
 
 ---
 
-Procurar emprego como dev tem uma parte que ninguém comenta: o trabalho manual.
+Procurar vaga de dev tem uma parte que ninguém comenta: o trabalho manual.
+Sete abas abertas, a mesma descrição relida três vezes, o currículo adaptado de
+novo para cada vaga.
 
-Abrir sete abas de sites de vaga. Reler a mesma descrição pela terceira vez.
-Adaptar o currículo para cada vaga — de novo. E ainda tentar lembrar em quais
-eu já tinha me candidatado.
+Automatizei. E virou projeto open source.
 
-Então fiz o que dev faz: automatizei o processo. E aproveitei para transformar
-isso num projeto de verdade.
+**Job Bot** busca em 7 fontes de uma vez — cada uma cobre um pedaço diferente
+do mercado:
 
-**Job Bot** — uma ferramenta local que:
+🇧🇷 **Adzuna** — a base para o Brasil. Rastreia e deduplica job boards em 16+
+países. (O instituto de estatística do Reino Unido usa os dados dela em
+relatórios de mercado de trabalho.)
 
-🔎 Busca vagas em 7 fontes públicas ao mesmo tempo (Adzuna, Jooble, Remotive,
-RemoteOK, Arbeitnow, Jobicy, The Muse)
+🌍 **Jooble** — o maior alcance bruto: indexa 140 mil+ fontes em ~69 países.
+Traz vaga que não está em nenhum board de tecnologia.
 
-🧹 Filtra o que não serve: fora de desenvolvimento, acima do meu nível, ou
-"remoto" que na verdade é presencial em outra cidade
+💼 **Remotive** — remoto curado à mão. Não é volume, é filtro: pouquíssimo lixo.
 
-📄 Gera um currículo sob medida para cada vaga usando IA — alinhando o
-vocabulário ao da descrição para passar na triagem por ATS, mas **sem inventar
-nada**: o prompt proíbe explicitamente qualquer tecnologia ou experiência que
-não esteja no meu currículo base
+💰 **RemoteOK** — o board remoto de maior tráfego, e o que mais leva a sério
+transparência salarial.
 
-📊 Acompanha tudo: favoritas, arquivo de candidaturas enviadas, vagas
-descartadas
+🇪🇺 **Arbeitnow** — API aberta, sem chave, forte presença europeia.
 
-✉️ Envia por e-mail — sempre com confirmação explícita minha
+🏠 **Jobicy** — remoto; sobrepõe em parte, mas sempre traz alguma exclusiva.
 
-O que mais me interessou tecnicamente foi o problema do "currículo honesto".
-É fácil fazer uma IA escrever um currículo que passa em qualquer ATS — basta
-deixar ela mentir. O desafio real foi o contrário: fazer com que ela otimize
-agressivamente para a vaga usando **somente** fatos verdadeiros. Se a vaga pede
-uma tecnologia que eu não tenho, o bot não escreve que eu tenho. Ponto.
+🏢 **The Muse** — o diferencial não é a vaga, é a empresa: perfis com cultura,
+fotos e depoimentos. Ajuda a decidir se você *quer* trabalhar ali.
 
-Algumas decisões que tomei de propósito:
+Depois o bot gera um currículo sob medida para a vaga escolhida.
 
-→ Zero login automático em plataformas de emprego. Zero scraping. Só APIs
-públicas. Automatizar login em LinkedIn/Gupy/Catho violaria os termos de uso
-deles — e não vale o risco nem o atalho.
+Essa foi a parte tecnicamente mais interessante. É fácil fazer uma IA escrever
+currículo que passa em ATS — basta deixar ela mentir. O desafio foi o contrário:
+otimizar agressivamente usando **só fatos verdadeiros**. Ele alinha o vocabulário
+ao da vaga e reordena as competências, mas o prompt proíbe adicionar qualquer
+tecnologia que não esteja no meu currículo base. Se a vaga pede algo que eu não
+tenho, ele não escreve que eu tenho.
 
-→ Nenhuma candidatura sai sem eu clicar e confirmar. Não existe modo
-"candidatar-se a tudo".
+Três decisões que tomei de propósito:
 
-→ Roda 100% local. Meus dados não vão para lugar nenhum.
+→ Zero scraping e zero login automático em plataformas. Só APIs públicas —
+automatizar login em LinkedIn/Gupy violaria os termos de uso deles.
+→ Nada é enviado sem eu confirmar. Não existe modo "candidatar-se a tudo".
+→ Roda 100% local.
 
-Stack: Python, Flask, APIs REST, DeepSeek para a geração de texto. Interface
-bilíngue (PT/RU), testes rodando offline.
-
-O código está aberto, com README em português e russo:
+Python, Flask, DeepSeek. README em português e russo:
 👉 https://github.com/vestek70/job_bot
 
-Se você também está procurando vaga de dev, pode clonar e usar — é só colocar
-suas próprias chaves de API (todas têm plano gratuito) e seu currículo base.
+Está procurando vaga também? Clona e usa — licença MIT, e todas as APIs têm
+plano gratuito.
 
-E se olhar o código e tiver sugestão de melhoria, mando um abraço antecipado —
-feedback de quem tem mais estrada é o que mais acelera quem está começando. 🙏
+E se olhar o código e tiver sugestão, feedback de quem tem mais estrada é o que
+mais acelera quem está começando. 🙏
 
-#desenvolvimento #python #opensource #buscadeemprego #tecnologia #devbr
-#programacao #inteligenciaartificial
+#devbr #python #opensource #buscadeemprego #inteligenciaartificial
 
 ---
 
-## Dicas para publicar
+## Dicas rápidas
 
-- **Melhor horário**: terça a quinta, entre 8h e 10h (horário de Brasília).
-- **Primeira linha é o que aparece antes do "ver mais"** — ela é o gancho. A
-  atual já foi escrita pensando nisso.
-- **Comente no próprio post** com um detalhe técnico extra (ex.: como funciona
-  o filtro de vagas híbridas). Isso aumenta o alcance e mostra profundidade.
-- **Responda todos os comentários** nas primeiras 2 horas — é o que mais
-  impulsiona o alcance no LinkedIn.
-- Se quiser, adicione um print do painel ou um GIF curto de 10-15 segundos
-  mostrando o fluxo: buscar → gerar currículo → abrir PDF. Post com imagem
-  costuma performar bem melhor que só texto.
+- Publique terça a quinta, 8h–10h (Brasília).
+- A primeira linha é o gancho — é só ela que aparece antes do "ver mais".
+- Adicione um print do painel ou GIF curto (buscar → gerar currículo → PDF).
+  Post com imagem performa bem melhor.
+- Responda os comentários nas primeiras 2 horas: é o que mais impulsiona alcance.
+- Se quiser cortar mais, os 7 itens podem virar 3 linhas: "Adzuna e Jooble para
+  volume no Brasil, Remotive/RemoteOK/Arbeitnow/Jobicy para remoto, The Muse
+  para cultura da empresa."
+
+## Fontes dos números (verificados em julho/2026)
+
+- Adzuna: https://developer.adzuna.com/ · https://jobspipe.dev/blog/adzuna-api
+- Jooble: https://jooble.org/how-jooble-works
+- Remotive: https://jobboardsearch.com/job-boards/remotive
+- RemoteOK: https://topremotejobboards.com/review/remotive
+- The Muse: https://publicapi.dev/the-muse-api

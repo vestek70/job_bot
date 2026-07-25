@@ -222,4 +222,4 @@ python test_filters.py && python test_app.py && python test_search_jobs.py
 
 ## Licença
 
-MIT — use, modifique e adapte à sua busca de emprego.
+[MIT](LICENSE) — use, modifique e adapte à sua busca de emprego.
